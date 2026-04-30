@@ -29,6 +29,10 @@ select {
   font: inherit;
 }
 
+input[type='range'] {
+  accent-color: #2563eb;
+}
+
 button {
   cursor: pointer;
 }
@@ -155,4 +159,37 @@ select:focus-visible {
 
 .mono {
   font-family: 'Cascadia Mono', 'Consolas', monospace;
+}
+
+.slider-field {
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.slider-field::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2563eb;
+  border-radius: 999px;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.slider-field::-moz-range-track {
+  height: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.slider-field::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2563eb;
+  border-radius: 999px;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }

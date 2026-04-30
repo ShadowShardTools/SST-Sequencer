@@ -1,4 +1,5 @@
-import { isValidFps, isValidSpeed } from '../../../../shared/formats';
+import { isValidFps, isValidQuality, isValidSpeed } from '../../../../shared/formats';
+import { isValidResolutionSettings } from '../../../../shared/resolution';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../../shared/previews';
 import { basenameLabel, formatResolution } from '../../lib/media';
 import type { WorkflowStepState } from '../../components/shell';
@@ -308,7 +309,11 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
     job.sourceMode === 'folder'
       ? Boolean(job.sequenceFolder?.trim())
       : (job.imagePaths?.length ?? 0) > 0;
-  const parametersReady = isValidFps(job.fps) && isValidSpeed(job.speed);
+  const parametersReady =
+    isValidFps(job.fps) &&
+    isValidSpeed(job.speed) &&
+    isValidQuality(job.quality) &&
+    isValidResolutionSettings(job);
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -320,6 +325,12 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
   }
   if (!isValidSpeed(job.speed)) {
     blocking.push('Set speed between 0.25 and 8.');
+  }
+  if (!isValidQuality(job.quality)) {
+    blocking.push('Set quality between 1% and 100%.');
+  }
+  if (!isValidResolutionSettings(job)) {
+    blocking.push('Set custom resolution width and height between 2 and 8192.');
   }
 
   return {
@@ -334,9 +345,11 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
 function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): ValidationState {
   const sourceReady = Boolean(job.videoPath?.trim());
   const rateReady = isValidFps(job.fps) && isValidSpeed(job.speed);
+  const qualityReady = isValidQuality(job.quality);
+  const resolutionReady = isValidResolutionSettings(job);
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
-  const parametersReady = rateReady && prefixReady && numberingReady;
+  const parametersReady = rateReady && qualityReady && resolutionReady && prefixReady && numberingReady;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -348,6 +361,12 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
   }
   if (!isValidSpeed(job.speed)) {
     blocking.push('Set speed between 0.25 and 8.');
+  }
+  if (!qualityReady) {
+    blocking.push('Set image quality between 1% and 100%.');
+  }
+  if (!resolutionReady) {
+    blocking.push('Set custom resolution width and height between 2 and 8192.');
   }
   if (!prefixReady) {
     blocking.push('Enter a frame prefix.');
@@ -370,10 +389,13 @@ function validateBatchVideoToSequence(
 ): ValidationState {
   const sourceReady =
     job.sourceMode === 'files' ? (job.videoPaths?.length ?? 0) > 0 : Boolean(job.scanRoot?.trim());
-  const rateReady = isValidFps(job.fps) && isValidSpeed(job.speed);
+  const fpsReady = !job.overrideFps || isValidFps(job.fps);
+  const speedReady = isValidSpeed(job.speed);
+  const qualityReady = isValidQuality(job.quality);
+  const rateReady = fpsReady && speedReady;
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
-  const parametersReady = rateReady && prefixReady && numberingReady;
+  const parametersReady = rateReady && qualityReady && prefixReady && numberingReady;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -384,11 +406,14 @@ function validateBatchVideoToSequence(
         : 'Choose a root folder to scan.'
     );
   }
-  if (!isValidFps(job.fps)) {
+  if (job.overrideFps && !isValidFps(job.fps)) {
     blocking.push('Set FPS between 1 and 120.');
   }
   if (!isValidSpeed(job.speed)) {
     blocking.push('Set speed between 0.25 and 8.');
+  }
+  if (!qualityReady) {
+    blocking.push('Set image quality between 1% and 100%.');
   }
   if (!prefixReady) {
     blocking.push('Enter a frame prefix.');
@@ -416,7 +441,8 @@ function validateBatchSequenceToVideo(
     job.sourceMode === 'folders'
       ? (job.sequenceFolders?.length ?? 0) > 0
       : Boolean(job.scanRoot?.trim());
-  const parametersReady = isValidFps(job.fps) && isValidSpeed(job.speed);
+  const parametersReady =
+    isValidFps(job.fps) && isValidSpeed(job.speed) && isValidQuality(job.quality);
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -432,6 +458,9 @@ function validateBatchSequenceToVideo(
   }
   if (!isValidSpeed(job.speed)) {
     blocking.push('Set speed between 0.25 and 8.');
+  }
+  if (!isValidQuality(job.quality)) {
+    blocking.push('Set quality between 1% and 100%.');
   }
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');

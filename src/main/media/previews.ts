@@ -2,13 +2,15 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { SequenceInputMode } from '../../shared/formats';
+import type { ResolutionMode } from '../../shared/resolution';
 import type { JobSummary } from '../../shared/jobs';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../shared/previews';
 import { createVideoFromImages } from './ffmpeg';
 import { dedupeAndSort, getImageFilesFromFolder } from './discovery';
 import { probeMediaInfo } from './ffprobe';
+import { resolveSequenceResizeTarget } from './resize';
 import type { JobEmitter } from './types';
-import { validateRateSettings } from './validation';
+import { validateRateSettings, validateResolutionSetting } from './validation';
 
 const previewArtifactDirs: string[] = [];
 
@@ -66,8 +68,12 @@ export async function generateSequencePreview(input: {
   imagePaths?: string[];
   fps: number;
   speed: number;
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
 }): Promise<VideoSourcePreview | null> {
   validateRateSettings(input.fps, input.speed);
+  validateResolutionSetting(input);
 
   const imagePaths =
     input.sourceMode === 'images'
@@ -87,6 +93,9 @@ export async function generateSequencePreview(input: {
   const previewFrames = imagePaths.slice(0, previewFrameLimit);
   const previewDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-preview-'));
   const outputPath = join(previewDir, 'preview.webm');
+  const resize = await resolveSequenceResizeTarget(input, previewFrames, {
+    enforceEven: true,
+  });
 
   await prunePreviewArtifacts();
   previewArtifactDirs.push(previewDir);
@@ -96,9 +105,10 @@ export async function generateSequencePreview(input: {
     outputPath,
     fps: input.fps,
     speed: input.speed,
+    quality: 70,
     format: 'webm-vp9',
+    resize,
     emitter: silentEmitter,
-    extraVideoFilters: ['scale=trunc(iw*min(1\\,960/iw)/2)*2:trunc(ih*min(1\\,960/iw)/2)*2'],
   });
 
   return inspectVideoSource(outputPath);

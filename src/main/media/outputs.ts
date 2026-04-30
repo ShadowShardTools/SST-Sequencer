@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
-import { basename, dirname, extname, join, parse } from 'node:path';
-import { getVideoFormatExtension } from '../../shared/formats';
+import { basename, dirname, join, parse } from 'node:path';
+import { applyVideoFormatExtension, getVideoFormatExtension } from '../../shared/formats';
 import type {
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
@@ -27,7 +27,7 @@ export async function resolveSingleSequenceOutput(
   imagePaths: string[]
 ): Promise<string> {
   if (request.outputPath?.trim()) {
-    return withExtension(request.outputPath, getVideoFormatExtension(request.format));
+    return applyVideoFormatExtension(request.outputPath, request.format);
   }
 
   const defaultDir =
@@ -92,15 +92,6 @@ export async function resolveBatchVideoOutput(
   return ensureUniqueFilePath(
     join(sequenceFolder, `${basename(sequenceFolder)}.${getVideoFormatExtension(request.format)}`)
   );
-}
-
-function withExtension(filePath: string, extension: string): string {
-  const current = extname(filePath);
-  if (current.toLowerCase() === `.${extension.toLowerCase()}`) {
-    return filePath;
-  }
-
-  return `${filePath.replace(/\.[^/.]+$/, '')}.${extension}`;
 }
 
 async function ensureUniqueFilePath(filePath: string): Promise<string> {

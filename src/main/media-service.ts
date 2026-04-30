@@ -12,6 +12,8 @@ import type {
   VideoToSequenceJob,
 } from '../shared/jobs';
 import { createImagesFromVideo, createVideoFromImages } from './media/ffmpeg';
+import { probeMediaInfo } from './media/ffprobe';
+import { resolveSequenceResizeTarget, resolveVideoResizeTarget } from './media/resize';
 import {
   dedupeAndSort,
   discoverSequenceFolders,
@@ -26,7 +28,13 @@ import {
   resolveSingleSequenceOutput,
 } from './media/outputs';
 import type { JobEmitter } from './media/types';
-import { validateRateSettings } from './media/validation';
+import {
+  validateFpsSetting,
+  validateQualitySetting,
+  validateRateSettings,
+  validateResolutionSetting,
+  validateSpeedSetting,
+} from './media/validation';
 
 export {
   generateSequencePreview,
@@ -100,12 +108,17 @@ async function runSequenceToVideoJob(
   emitter: JobEmitter
 ): Promise<JobSummary> {
   validateRateSettings(request.fps, request.speed);
+  validateQualitySetting(request.quality);
+  validateResolutionSetting(request);
 
   const imagePaths = await resolveSequenceInput(request);
   if (imagePaths.length === 0) {
     throw new Error('No images were found for the selected sequence.');
   }
 
+  const resize = await resolveSequenceResizeTarget(request, imagePaths, {
+    enforceEven: true,
+  });
   const outputPath = await resolveSingleSequenceOutput(request, imagePaths);
   emitter.log(`Encoding ${imagePaths.length} frames into ${basename(outputPath)}.`);
 
@@ -114,7 +127,9 @@ async function runSequenceToVideoJob(
     outputPath,
     fps: request.fps,
     speed: request.speed,
+    quality: request.quality,
     format: request.format,
+    resize,
     emitter,
     onProgress: (percent) =>
       emitter.progress(percent, `Encoding ${basename(outputPath)}`, {
@@ -138,12 +153,15 @@ async function runVideoToSequenceJob(
   emitter: JobEmitter
 ): Promise<JobSummary> {
   validateRateSettings(request.fps, request.speed);
+  validateQualitySetting(request.quality);
+  validateResolutionSetting(request);
 
   const videoPath = request.videoPath?.trim();
   if (!videoPath) {
     throw new Error('Select a source video before running the job.');
   }
 
+  const resize = await resolveVideoResizeTarget(request, videoPath);
   const outputDir = await resolveSingleSequenceDirectory(request);
   emitter.log(`Extracting frames from ${basename(videoPath)}.`);
 
@@ -152,6 +170,8 @@ async function runVideoToSequenceJob(
     outputDir,
     fps: request.fps,
     speed: request.speed,
+    quality: request.quality,
+    resize,
     format: request.format,
     prefix: request.prefix,
     startNumber: request.startNumber,
@@ -177,7 +197,11 @@ async function runBatchVideoToSequenceJob(
   request: BatchVideoToSequenceJob,
   emitter: JobEmitter
 ): Promise<JobSummary> {
-  validateRateSettings(request.fps, request.speed);
+  validateSpeedSetting(request.speed);
+  validateQualitySetting(request.quality);
+  if (request.overrideFps) {
+    validateFpsSetting(request.fps);
+  }
 
   const videoPaths =
     request.sourceMode === 'files'
@@ -199,13 +223,17 @@ async function runBatchVideoToSequenceJob(
 
     try {
       const outputDir = await resolveBatchSequenceDirectory(request, videoPath);
+      const extractionFps = request.overrideFps
+        ? request.fps
+        : await resolveBatchVideoSourceFps(videoPath, request.fps, emitter);
       emitter.log(`Starting ${label} (${currentIndex}/${videoPaths.length}).`);
 
       await createImagesFromVideo({
         videoPath,
         outputDir,
-        fps: request.fps,
+        fps: extractionFps,
         speed: request.speed,
+        quality: request.quality,
         format: request.format,
         prefix: request.prefix,
         startNumber: request.startNumber,
@@ -246,6 +274,7 @@ async function runBatchSequenceToVideoJob(
   emitter: JobEmitter
 ): Promise<JobSummary> {
   validateRateSettings(request.fps, request.speed);
+  validateQualitySetting(request.quality);
 
   const sequenceFolders =
     request.sourceMode === 'folders'
@@ -279,6 +308,7 @@ async function runBatchSequenceToVideoJob(
         outputPath,
         fps: request.fps,
         speed: request.speed,
+        quality: request.quality,
         format: request.format,
         emitter,
         onProgress: (percent) =>
@@ -374,6 +404,34 @@ function scaleBatchPercent(index: number, total: number, itemPercent: number): n
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+async function resolveBatchVideoSourceFps(
+  videoPath: string,
+  fallbackFps: number,
+  emitter: JobEmitter
+): Promise<number> {
+  const safeFallbackFps =
+    Number.isFinite(fallbackFps) && fallbackFps >= 1 && fallbackFps <= 120 ? fallbackFps : 24;
+
+  try {
+    const mediaInfo = await probeMediaInfo(videoPath);
+    if (mediaInfo.frameRate && Number.isFinite(mediaInfo.frameRate) && mediaInfo.frameRate > 0) {
+      return Math.round(mediaInfo.frameRate * 1000) / 1000;
+    }
+  } catch (error) {
+    emitter.log(
+      `Could not detect source FPS for ${basename(videoPath)}. Falling back to ${safeFallbackFps} fps: ${getErrorMessage(error)}`,
+      'error'
+    );
+    return safeFallbackFps;
+  }
+
+  emitter.log(
+    `Could not detect source FPS for ${basename(videoPath)}. Falling back to ${safeFallbackFps} fps.`,
+    'error'
+  );
+  return safeFallbackFps;
 }
 
 function getStartMessage(request: JobRequest): string {

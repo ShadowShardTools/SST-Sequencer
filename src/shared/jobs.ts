@@ -6,6 +6,7 @@ import type {
   SequenceInputMode,
   VideoFormat,
 } from './formats';
+import type { ResolutionMode } from './resolution';
 
 export interface SequenceToVideoJob {
   kind: 'sequence-to-video';
@@ -15,6 +16,10 @@ export interface SequenceToVideoJob {
   outputPath?: string;
   fps: number;
   speed: number;
+  quality: number;
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
   format: VideoFormat;
 }
 
@@ -24,6 +29,10 @@ export interface VideoToSequenceJob {
   outputDir?: string;
   fps: number;
   speed: number;
+  quality: number;
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
   format: ImageFormat;
   prefix: string;
   startNumber: number;
@@ -37,8 +46,10 @@ export interface BatchVideoToSequenceJob {
   recursive: boolean;
   outputMode: BatchOutputMode;
   outputRoot?: string;
+  overrideFps: boolean;
   fps: number;
   speed: number;
+  quality: number;
   format: ImageFormat;
   prefix: string;
   startNumber: number;
@@ -54,6 +65,7 @@ export interface BatchSequenceToVideoJob {
   outputRoot?: string;
   fps: number;
   speed: number;
+  quality: number;
   format: VideoFormat;
 }
 

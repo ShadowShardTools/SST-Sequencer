@@ -1,10 +1,21 @@
 import {
+  applyVideoFormatExtension,
   getVideoFormatExtension,
   isValidFps,
+  isValidQuality,
   isValidSpeed,
+  type SelectOption,
+  type ImageFormat,
   type VideoFormat,
 } from '../../../shared/formats';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../shared/previews';
+import {
+  resolveResolution,
+  type ResolutionDimensions,
+  type ResolutionMode,
+  type ResolutionSettings,
+  type ResolvedResolution,
+} from '../../../shared/resolution';
 
 type DroppedPayload = {
   paths: string[];
@@ -28,10 +39,29 @@ const IMAGE_EXTENSIONS = new Set([
   '.bmp',
   '.tif',
   '.tiff',
+  '.tga',
   '.exr',
 ]);
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.avi', '.mxf', '.webm', '.m4v']);
-const DISPLAYABLE_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.bmp']);
+const VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.mov',
+  '.mkv',
+  '.avi',
+  '.mxf',
+  '.webm',
+  '.m4v',
+  '.gif',
+  '.apng',
+]);
+const DISPLAYABLE_IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.bmp',
+  '.gif',
+  '.apng',
+]);
 const naturalCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
@@ -75,30 +105,42 @@ export function estimateVideoSizeNote(
   preview: SequenceSourcePreview | null,
   fps: number,
   speed: number,
-  format: VideoFormat
+  format: VideoFormat,
+  quality: number,
+  targetResolution?: ResolvedResolution | null
 ): string | null {
-  if (!preview || !isValidFps(fps) || !isValidSpeed(speed)) {
+  if (!preview || !isValidFps(fps) || !isValidSpeed(speed) || !isValidQuality(quality)) {
     return null;
   }
 
-  const width = preview.width ?? 1920;
-  const height = preview.height ?? 1080;
+  const width = targetResolution?.width ?? preview.width ?? 1920;
+  const height = targetResolution?.height ?? preview.height ?? 1080;
   const seconds = preview.frameCount / fps / speed;
   const megapixels = (width * height) / 1_000_000;
   let mbps = 6;
 
   switch (format) {
     case 'mp4-h264':
+    case 'mov-h264':
+    case 'mkv-h264':
       mbps = Math.max(4, megapixels * 4.5);
       break;
     case 'mp4-hevc':
+    case 'mov-hevc':
+    case 'mkv-hevc':
       mbps = Math.max(3, megapixels * 3.2);
       break;
     case 'prores422':
       mbps = Math.max(45, megapixels * 34);
       break;
+    case 'prores4444':
+      mbps = Math.max(65, megapixels * 46);
+      break;
     case 'webm-vp9':
       mbps = Math.max(2.6, megapixels * 2.8);
+      break;
+    case 'apng':
+      mbps = Math.max(6, megapixels * 6.5);
       break;
     case 'gif-palette':
       mbps = Math.max(5, megapixels * 5.5);
@@ -107,8 +149,239 @@ export function estimateVideoSizeNote(
       mbps = 6;
   }
 
+  const qualityFactor = 0.35 + (quality / 100) * 1.65;
+  mbps *= qualityFactor;
+
   const estimatedBytes = (mbps * 1_000_000 * seconds) / 8;
   return `Estimated size: about ${formatBytes(estimatedBytes)} for ${trimNumber(seconds)}s.`;
+}
+
+export function getVideoQualityNote(format: VideoFormat, quality: number): string {
+  const clampedQuality = clampToRange(Math.round(quality), 1, 100);
+
+  switch (format) {
+    case 'mp4-h264':
+    case 'mov-h264':
+    case 'mkv-h264':
+      return `H.264 target: CRF ${mapQualityToRange(clampedQuality, 40)}. 100% is least compressed.`;
+    case 'mp4-hevc':
+    case 'mov-hevc':
+    case 'mkv-hevc':
+      return `H.265 target: CRF ${mapQualityToRange(clampedQuality, 40)}. 100% is least compressed.`;
+    case 'webm-vp9':
+      return `VP9 target: CRF ${mapQualityToRange(clampedQuality, 63)}. Lower CRF means larger files.`;
+    case 'prores422':
+    case 'prores4444':
+      return `ProRes target: qscale ${mapQualityToQscale(clampedQuality)}. Files stay relatively large even at lower quality.`;
+    case 'apng':
+      return `APNG uses PNG compression level ${mapQualityToPngCompressionLevel(clampedQuality)}. Visual quality stays lossless.`;
+    case 'gif-palette':
+      return `GIF palette: ${mapQualityToGifColors(clampedQuality)} colors. Lower quality reduces the palette size.`;
+    default:
+      return 'Higher quality means less compression and larger files.';
+  }
+}
+
+export function getImageQualityNote(format: ImageFormat, quality: number): string {
+  const clampedQuality = clampToRange(Math.round(quality), 1, 100);
+
+  switch (format) {
+    case 'jpg':
+      return `JPEG target: qscale ${mapQualityToJpegQscale(clampedQuality)}. 100% is least compressed.`;
+    case 'webp':
+      return `WebP target: quality ${clampedQuality}. Higher quality means larger files.`;
+    case 'png':
+      return `PNG uses compression level ${mapQualityToPngCompressionLevel(clampedQuality)}. Visual quality stays lossless.`;
+    case 'tiff':
+      return 'TIFF exports are effectively lossless. Quality has little to no visible effect.';
+    case 'bmp':
+      return 'BMP exports are uncompressed. Quality does not change the output.';
+    case 'tga':
+      return 'TGA exports are effectively uncompressed. Quality does not change the output.';
+    default:
+      return 'Higher quality means less compression and larger files.';
+  }
+}
+
+export type ImageAdjustmentUi = {
+  label: string;
+  note: string;
+  minLabel?: string;
+  maxLabel?: string;
+  valueLabel?: string;
+  adjustable: boolean;
+};
+
+export type ResolutionControlUi = {
+  options: Array<SelectOption<ResolutionMode>>;
+  note: string;
+  resolved: ResolvedResolution | null;
+};
+
+export function getImageAdjustmentUi(format: ImageFormat, quality: number): ImageAdjustmentUi {
+  const clampedQuality = clampToRange(Math.round(quality), 1, 100);
+
+  switch (format) {
+    case 'jpg':
+      return {
+        label: 'Image quality',
+        note: getImageQualityNote(format, clampedQuality),
+        minLabel: 'Smaller file',
+        maxLabel: 'Best quality',
+        valueLabel: `${clampedQuality}%`,
+        adjustable: true,
+      };
+    case 'webp':
+      return {
+        label: 'Image quality',
+        note: getImageQualityNote(format, clampedQuality),
+        minLabel: 'Smaller file',
+        maxLabel: 'Best quality',
+        valueLabel: `${clampedQuality}%`,
+        adjustable: true,
+      };
+    case 'png':
+      return {
+        label: 'Compression',
+        note: getImageQualityNote(format, clampedQuality),
+        minLabel: 'Smaller file',
+        maxLabel: 'Faster encode',
+        valueLabel: `Level ${mapQualityToPngCompressionLevel(clampedQuality)}`,
+        adjustable: true,
+      };
+    case 'bmp':
+      return {
+        label: 'Compression',
+        note: getImageQualityNote(format, clampedQuality),
+        adjustable: false,
+      };
+    case 'tga':
+      return {
+        label: 'Compression',
+        note: getImageQualityNote(format, clampedQuality),
+        adjustable: false,
+      };
+    case 'tiff':
+      return {
+        label: 'Compression',
+        note: getImageQualityNote(format, clampedQuality),
+        adjustable: false,
+      };
+    default:
+      return {
+        label: 'Image quality',
+        note: getImageQualityNote(format, clampedQuality),
+        minLabel: 'Smaller file',
+        maxLabel: 'Best quality',
+        valueLabel: `${clampedQuality}%`,
+        adjustable: true,
+      };
+  }
+}
+
+export function getResolutionControlUi(
+  settings: ResolutionSettings,
+  source: ResolutionDimensions | null,
+  outputKind: 'video' | 'images'
+): ResolutionControlUi {
+  const resolved = resolveResolution(settings, source ?? {}, {
+    enforceEven: outputKind === 'video',
+  });
+  const sourceLabel = formatResolution(source?.width, source?.height);
+
+  const options: Array<SelectOption<ResolutionMode>> = [
+    {
+      value: 'source',
+      label: sourceLabel ? `Source (${sourceLabel})` : 'Source resolution',
+    },
+    {
+      value: 'half',
+      label: buildResolutionOptionLabel('1/2 of source', source, { resolutionMode: 'half' }, outputKind),
+    },
+    {
+      value: 'quarter',
+      label: buildResolutionOptionLabel(
+        '1/4 of source',
+        source,
+        { resolutionMode: 'quarter' },
+        outputKind
+      ),
+    },
+    {
+      value: 'eighth',
+      label: buildResolutionOptionLabel(
+        '1/8 of source',
+        source,
+        { resolutionMode: 'eighth' },
+        outputKind
+      ),
+    },
+    {
+      value: 'custom',
+      label: 'Custom',
+    },
+  ];
+
+  if (!resolved) {
+    return {
+      options,
+      resolved: null,
+      note:
+        settings.resolutionMode === 'source'
+          ? 'Uses the source resolution once a source is loaded.'
+          : 'Load a source to preview the output resolution.',
+    };
+  }
+
+  const outputLabel = formatResolution(resolved.width, resolved.height) ?? 'Unknown';
+  if (settings.resolutionMode === 'source') {
+    return {
+      options,
+      resolved,
+      note: `Output resolution: ${outputLabel}.`,
+    };
+  }
+
+  if (settings.resolutionMode === 'custom') {
+    return {
+      options,
+      resolved,
+      note: `Custom output resolution: ${outputLabel}. Width and height stay aligned to the source aspect ratio while you edit them.`,
+    };
+  }
+
+  return {
+    options,
+    resolved,
+    note: `Output resolution: ${outputLabel}.`,
+  };
+}
+
+export function getAspectLockedDimensions(
+  source: ResolutionDimensions | null,
+  nextWidth: number | undefined,
+  nextHeight: number | undefined,
+  lockedEdge: 'width' | 'height'
+): ResolvedResolution | null {
+  if (!source?.width || !source.height) {
+    return null;
+  }
+
+  if (lockedEdge === 'width' && nextWidth && nextWidth > 0) {
+    return {
+      width: nextWidth,
+      height: Math.max(2, Math.round((nextWidth / source.width) * source.height / 2) * 2),
+    };
+  }
+
+  if (lockedEdge === 'height' && nextHeight && nextHeight > 0) {
+    return {
+      width: Math.max(2, Math.round((nextHeight / source.height) * source.width / 2) * 2),
+      height: nextHeight,
+    };
+  }
+
+  return null;
 }
 
 export function formatBytes(bytes: number): string {
@@ -234,6 +507,52 @@ export function buildSuggestedVideoName(
   const suffixIndex = sourceName.lastIndexOf('.');
   const baseName = suffixIndex > 0 ? sourceName.slice(0, suffixIndex) : sourceName;
   return `${baseName}.${ext}`;
+}
+
+export function replacePathExtension(filePath: string, format: VideoFormat): string {
+  return applyVideoFormatExtension(filePath, format);
+}
+
+function mapQualityToRange(quality: number, maxValue: number): number {
+  const normalized = clampToRange((100 - quality) / 99, 0, 1);
+  return Math.round(normalized * maxValue);
+}
+
+function mapQualityToQscale(quality: number): number {
+  const normalized = clampToRange((100 - quality) / 99, 0, 1);
+  return Math.max(1, Math.round(1 + normalized * 30));
+}
+
+function mapQualityToJpegQscale(quality: number): number {
+  const normalized = clampToRange((100 - quality) / 99, 0, 1);
+  return Math.max(1, Math.round(1 + normalized * 30));
+}
+
+function mapQualityToPngCompressionLevel(quality: number): number {
+  const normalized = clampToRange((100 - quality) / 99, 0, 1);
+  return Math.round(normalized * 9);
+}
+
+function mapQualityToGifColors(quality: number): number {
+  const normalized = clampToRange((quality - 1) / 99, 0, 1);
+  return Math.max(16, Math.round(16 + normalized * 240));
+}
+
+function buildResolutionOptionLabel(
+  baseLabel: string,
+  source: ResolutionDimensions | null,
+  settings: ResolutionSettings,
+  outputKind: 'video' | 'images'
+): string {
+  const resolved = resolveResolution(settings, source ?? {}, {
+    enforceEven: outputKind === 'video',
+  });
+
+  if (!resolved) {
+    return baseLabel;
+  }
+
+  return `${baseLabel} (${resolved.width} x ${resolved.height})`;
 }
 
 function getDroppedEntry(item: DataTransferItem): DroppedEntry | null {

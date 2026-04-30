@@ -1,6 +1,7 @@
 import type { SequenceInputMode, VideoFormat } from './formats';
 import type { JobEvent, JobRequest, JobResult } from './jobs';
 import type { SequenceSourcePreview, VideoSourcePreview } from './previews';
+import type { ResolutionMode } from './resolution';
 
 export interface MediaApi {
   pickImageFiles(): Promise<string[]>;
@@ -19,6 +20,9 @@ export interface MediaApi {
     imagePaths?: string[];
     fps: number;
     speed: number;
+    resolutionMode: ResolutionMode;
+    customWidth?: number;
+    customHeight?: number;
   }): Promise<VideoSourcePreview | null>;
   inspectVideoSource(videoPath: string): Promise<VideoSourcePreview | null>;
   loadImagePreview(filePath: string): Promise<string | null>;

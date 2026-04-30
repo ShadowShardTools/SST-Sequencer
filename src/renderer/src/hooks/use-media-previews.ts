@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isValidFps, isValidSpeed } from '../../../shared/formats';
-import type { JobRequest, JobSummary, SequenceToVideoJob } from '../../../shared/jobs';
+import type { SequenceToVideoJob } from '../../../shared/jobs';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../shared/previews';
 
 export function useSequenceSourcePreview(
@@ -44,9 +44,10 @@ export function useSequenceSourcePreview(
 export function useSequenceMotionPreview(
   params: Pick<
     SequenceToVideoJob,
-    'sourceMode' | 'sequenceFolder' | 'imagePaths' | 'fps' | 'speed'
+    'sourceMode' | 'sequenceFolder' | 'imagePaths' | 'fps' | 'speed' | 'resolutionMode' | 'customWidth' | 'customHeight'
   > & {
     enabled: boolean;
+    requestKey: number;
   }
 ): {
   preview: VideoSourcePreview | null;
@@ -56,10 +57,9 @@ export function useSequenceMotionPreview(
   const [preview, setPreview] = useState<VideoSourcePreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastHandledRequestKey = useRef(0);
 
   useEffect(() => {
-    let cancelled = false;
-
     if (
       !params.enabled ||
       !(
@@ -75,39 +75,9 @@ export function useSequenceMotionPreview(
       return;
     }
 
-    setLoading(true);
+    setPreview(null);
+    setLoading(false);
     setError(null);
-    const timeoutId = window.setTimeout(() => {
-      void window.mediaApi
-        .generateSequencePreview({
-          sourceMode: params.sourceMode,
-          sequenceFolder: params.sequenceFolder,
-          imagePaths: params.imagePaths,
-          fps: params.fps,
-          speed: params.speed,
-        })
-        .then((nextPreview) => {
-          if (!cancelled) {
-            setPreview(nextPreview);
-            setLoading(false);
-            setError(nextPreview ? null : 'Preview unavailable for this source.');
-          }
-        })
-        .catch((previewError) => {
-          if (!cancelled) {
-            setPreview(null);
-            setLoading(false);
-            setError(
-              previewError instanceof Error ? previewError.message : 'Preview generation failed.'
-            );
-          }
-        });
-    }, 320);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeoutId);
-    };
   }, [
     params.enabled,
     params.sourceMode,
@@ -115,6 +85,74 @@ export function useSequenceMotionPreview(
     params.imagePaths,
     params.fps,
     params.speed,
+    params.resolutionMode,
+    params.customWidth,
+    params.customHeight,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (
+      params.requestKey <= 0 ||
+      params.requestKey === lastHandledRequestKey.current ||
+      !params.enabled ||
+      !(
+        (params.sourceMode === 'folder' && params.sequenceFolder?.trim()) ||
+        (params.imagePaths?.length ?? 0) > 0
+      ) ||
+      !isValidFps(params.fps) ||
+      !isValidSpeed(params.speed)
+    ) {
+      return;
+    }
+
+    lastHandledRequestKey.current = params.requestKey;
+    setLoading(true);
+    setError(null);
+
+    void window.mediaApi
+      .generateSequencePreview({
+        sourceMode: params.sourceMode,
+        sequenceFolder: params.sequenceFolder,
+        imagePaths: params.imagePaths,
+        fps: params.fps,
+        speed: params.speed,
+        resolutionMode: params.resolutionMode,
+        customWidth: params.customWidth,
+        customHeight: params.customHeight,
+      })
+      .then((nextPreview) => {
+        if (!cancelled) {
+          setPreview(nextPreview);
+          setLoading(false);
+          setError(nextPreview ? null : 'Preview unavailable for this source.');
+        }
+      })
+      .catch((previewError) => {
+        if (!cancelled) {
+          setPreview(null);
+          setLoading(false);
+          setError(
+            previewError instanceof Error ? previewError.message : 'Preview generation failed.'
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    params.requestKey,
+    params.enabled,
+    params.sourceMode,
+    params.sequenceFolder,
+    params.imagePaths,
+    params.fps,
+    params.speed,
+    params.resolutionMode,
+    params.customWidth,
+    params.customHeight,
   ]);
 
   return {
@@ -152,47 +190,6 @@ export function useVideoSourcePreview(videoPath: string | undefined): VideoSourc
       cancelled = true;
     };
   }, [videoPath]);
-
-  return preview;
-}
-
-export function useRenderedVideoPreview(params: {
-  requestKind?: JobRequest['kind'];
-  success?: boolean;
-  summary?: JobSummary;
-}): VideoSourcePreview | null {
-  const [preview, setPreview] = useState<VideoSourcePreview | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const outputPath =
-      params.requestKind === 'sequence-to-video' && params.success === true
-        ? params.summary?.outputs?.[0]
-        : undefined;
-
-    if (!outputPath?.trim()) {
-      setPreview(null);
-      return;
-    }
-
-    void window.mediaApi
-      .inspectVideoSource(outputPath)
-      .then((nextPreview) => {
-        if (!cancelled) {
-          setPreview(nextPreview);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPreview(null);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params.requestKind, params.success, params.summary]);
 
   return preview;
 }

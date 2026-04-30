@@ -9,9 +9,20 @@ const IMAGE_EXTENSIONS = new Set([
   '.bmp',
   '.tif',
   '.tiff',
+  '.tga',
   '.exr',
 ]);
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.mkv', '.avi', '.mxf', '.webm', '.m4v']);
+const VIDEO_EXTENSIONS = new Set([
+  '.mp4',
+  '.mov',
+  '.mkv',
+  '.avi',
+  '.mxf',
+  '.webm',
+  '.m4v',
+  '.gif',
+  '.apng',
+]);
 const naturalCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',

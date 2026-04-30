@@ -11,11 +11,10 @@ import {
   DropNoticeBanner,
   type DropNotice,
   PathPicker,
+  SelectField,
   SingleDropZone,
-  ToggleField,
 } from '../../components/fields';
 import {
-  RenderedVideoPreview,
   SequenceMotionPreview,
   SequencePreviewStrip,
   VideoPreviewStrip,
@@ -37,6 +36,7 @@ type SourceActions = {
   pickBatchVideoScanRoot: () => void | Promise<void>;
   pickBatchSequenceFolders: () => void | Promise<void>;
   pickBatchSequenceScanRoot: () => void | Promise<void>;
+  generateSequencePreview: () => void | Promise<void>;
   handleSequenceSourceDrop: (dataTransfer: DataTransfer) => Promise<void>;
   handleVideoSourceDrop: (dataTransfer: DataTransfer) => Promise<void>;
 };
@@ -51,7 +51,7 @@ export function WorkflowSourceSection(
     sequenceVideoPreview: VideoSourcePreview | null;
     sequenceVideoPreviewLoading: boolean;
     sequenceVideoPreviewError: string | null;
-    renderedVideoPreview: VideoSourcePreview | null;
+    canGenerateSequencePreview: boolean;
     videoToSequence: VideoToSequenceJob;
     setVideoToSequence: Dispatch<SetStateAction<VideoToSequenceJob>>;
     videoPreview: VideoSourcePreview | null;
@@ -62,8 +62,6 @@ export function WorkflowSourceSection(
     actions: SourceActions;
   }
 ) {
-  const renderedVideoPath = props.renderedVideoPreview?.videoPath;
-
   switch (props.activeTab) {
     case 'sequence-to-video':
       return (
@@ -78,7 +76,7 @@ export function WorkflowSourceSection(
             icon="folder"
             title="Drop a sequence folder or image files"
             description="Drag the source in here."
-            acceptedLabel="PNG, JPG, EXR, TIFF"
+            acceptedLabel="PNG, JPG, WEBP, BMP, TGA, EXR, TIFF"
             onDropTransfer={props.actions.handleSequenceSourceDrop}
             browseActions={[
               {
@@ -94,47 +92,42 @@ export function WorkflowSourceSection(
 
           {props.singleDropNotice && <DropNoticeBanner notice={props.singleDropNotice} />}
 
-          {!props.sequenceVideoPreviewLoading &&
-            !props.sequenceVideoPreview &&
-            props.sequencePreview && (
-              <SequencePreviewStrip
-                preview={props.sequencePreview}
-                fps={props.sequenceToVideo.fps}
-                sourceMode={props.sequenceToVideo.sourceMode}
-                sourceLabel={
-                  props.sequenceToVideo.sourceMode === 'folder'
-                    ? props.sequenceToVideo.sequenceFolder
-                    : props.sequenceToVideo.imagePaths?.[0]
-                }
-                onClear={() =>
-                  props.setSequenceToVideo((current) => ({
-                    ...current,
-                    sourceMode: 'folder',
-                    sequenceFolder: '',
-                    imagePaths: [],
-                  }))
-                }
-              />
-            )}
+          {!props.sequenceVideoPreview && props.sequencePreview && (
+            <SequencePreviewStrip
+              preview={props.sequencePreview}
+              fps={props.sequenceToVideo.fps}
+              sourceMode={props.sequenceToVideo.sourceMode}
+              sourceLabel={
+                props.sequenceToVideo.sourceMode === 'folder'
+                  ? props.sequenceToVideo.sequenceFolder
+                  : props.sequenceToVideo.imagePaths?.[0]
+              }
+              onClear={() =>
+                props.setSequenceToVideo((current) => ({
+                  ...current,
+                  sourceMode: 'folder',
+                  sequenceFolder: '',
+                  imagePaths: [],
+                }))
+              }
+            />
+          )}
 
-          {(props.sequenceVideoPreviewLoading ||
-            props.sequenceVideoPreview ||
-            props.sequenceVideoPreviewError) && (
+          {props.sequencePreview && (
             <SequenceMotionPreview
               preview={props.sequenceVideoPreview}
               loading={props.sequenceVideoPreviewLoading}
               error={props.sequenceVideoPreviewError}
-            />
-          )}
-
-          {props.renderedVideoPreview && (
-            <RenderedVideoPreview
-              preview={props.renderedVideoPreview}
-              onReveal={() => {
-                if (renderedVideoPath) {
-                  void window.mediaApi.revealPath(renderedVideoPath);
-                }
-              }}
+              canGenerate={props.canGenerateSequencePreview}
+              onGenerate={props.actions.generateSequencePreview}
+              onClear={() =>
+                props.setSequenceToVideo((current) => ({
+                  ...current,
+                  sourceMode: 'folder',
+                  sequenceFolder: '',
+                  imagePaths: [],
+                }))
+              }
             />
           )}
         </SectionCard>
@@ -152,7 +145,7 @@ export function WorkflowSourceSection(
             icon="video"
             title="Drop one video file"
             description="Drag the source in here."
-            acceptedLabel="MP4, MOV, MKV, AVI, WEBM"
+            acceptedLabel="MP4, MOV, MKV, AVI, WEBM, GIF, APNG"
             onDropTransfer={props.actions.handleVideoSourceDrop}
             browseActions={[
               {
@@ -211,17 +204,22 @@ export function WorkflowSourceSection(
               ]}
             />
 
-            <ToggleField
-              label="Recursive scan"
-              description="Search subfolders."
-              checked={props.batchVideoToSequence.recursive}
-              onChange={(checked) =>
-                props.setBatchVideoToSequence((current) => ({
-                  ...current,
-                  recursive: checked,
-                }))
-              }
-            />
+            <div className="w-full max-w-[210px]">
+              <div className="mb-1 text-sm font-semibold text-white">Recursive scan</div>
+              <SelectField
+                value={props.batchVideoToSequence.recursive ? 'enabled' : 'disabled'}
+                options={[
+                  { value: 'enabled', label: 'Enabled' },
+                  { value: 'disabled', label: 'Disabled' },
+                ]}
+                onChange={(value) =>
+                  props.setBatchVideoToSequence((current) => ({
+                    ...current,
+                    recursive: value === 'enabled',
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <PathPicker
@@ -288,17 +286,22 @@ export function WorkflowSourceSection(
               ]}
             />
 
-            <ToggleField
-              label="Recursive scan"
-              description="Search subfolders."
-              checked={props.batchSequenceToVideo.recursive}
-              onChange={(checked) =>
-                props.setBatchSequenceToVideo((current) => ({
-                  ...current,
-                  recursive: checked,
-                }))
-              }
-            />
+            <div className="w-full max-w-[210px]">
+              <div className="mb-1 text-sm font-semibold text-white">Recursive scan</div>
+              <SelectField
+                value={props.batchSequenceToVideo.recursive ? 'enabled' : 'disabled'}
+                options={[
+                  { value: 'enabled', label: 'Enabled' },
+                  { value: 'disabled', label: 'Disabled' },
+                ]}
+                onChange={(value) =>
+                  props.setBatchSequenceToVideo((current) => ({
+                    ...current,
+                    recursive: value === 'enabled',
+                  }))
+                }
+              />
+            </div>
           </div>
 
           <PathPicker

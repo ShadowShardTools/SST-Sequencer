@@ -20,7 +20,12 @@ export async function createVideoFromImages(options: {
   outputPath: string;
   fps: number;
   speed: number;
+  quality: number;
   format: VideoFormat;
+  resize?: {
+    width: number;
+    height: number;
+  };
   emitter: JobEmitter;
   onProgress?: (percent: number) => void;
   extraVideoFilters?: string[];
@@ -42,25 +47,52 @@ export async function createVideoFromImages(options: {
   const args = ['-hide_banner', '-y', '-f', 'concat', '-safe', '0', '-i', concatFilePath];
 
   if (options.format === 'gif-palette') {
+    const maxColors = mapQualityToGifColors(options.quality);
     args.push(
       '-filter_complex',
       `[0:v]setpts=${formatSetpts(options.speed)}*PTS,fps=${options.fps},split[frames][palette_source];` +
-        '[palette_source]palettegen=stats_mode=diff[palette];' +
+        `[palette_source]palettegen=max_colors=${maxColors}:stats_mode=diff[palette];` +
         '[frames][palette]paletteuse=dither=sierra2_4a',
       '-loop',
       '0',
+      options.outputPath
+    );
+  } else if (options.format === 'apng') {
+    const filterChain = [
+      `setpts=${formatSetpts(options.speed)}*PTS`,
+      `fps=${options.fps}`,
+      ...getResizeFilter(options.resize),
+      ...(options.extraVideoFilters ?? []),
+      'format=rgba',
+    ].join(',');
+
+    args.push(
+      '-vf',
+      filterChain,
+      '-plays',
+      '0',
+      '-compression_level',
+      String(mapQualityToPngCompressionLevel(options.quality)),
+      '-f',
+      'apng',
       options.outputPath
     );
   } else {
     const filterChain = [
       `setpts=${formatSetpts(options.speed)}*PTS`,
       `fps=${options.fps}`,
+      ...getResizeFilter(options.resize),
       'pad=ceil(iw/2)*2:ceil(ih/2)*2',
       ...(options.extraVideoFilters ?? []),
       ...getVideoPostFilters(options.format),
     ].join(',');
 
-    args.push('-vf', filterChain, ...getVideoCodecArgs(options.format), options.outputPath);
+    args.push(
+      '-vf',
+      filterChain,
+      ...getVideoCodecArgs(options.format, options.quality),
+      options.outputPath
+    );
   }
 
   try {
@@ -80,6 +112,11 @@ export async function createImagesFromVideo(options: {
   outputDir: string;
   fps: number;
   speed: number;
+  quality: number;
+  resize?: {
+    width: number;
+    height: number;
+  };
   format: ImageFormat;
   prefix: string;
   startNumber: number;
@@ -98,7 +135,11 @@ export async function createImagesFromVideo(options: {
   const safePrefix = sanitizePrefix(options.prefix);
   const outputPattern = join(options.outputDir, `${safePrefix}_%06d.${options.format}`);
 
-  const filterChain = [`setpts=${formatSetpts(options.speed)}*PTS`, `fps=${options.fps}`].join(',');
+  const filterChain = [
+    `setpts=${formatSetpts(options.speed)}*PTS`,
+    `fps=${options.fps}`,
+    ...getResizeFilter(options.resize),
+  ].join(',');
 
   const args = [
     '-hide_banner',
@@ -109,7 +150,7 @@ export async function createImagesFromVideo(options: {
     filterChain,
     '-start_number',
     String(Math.max(0, Math.floor(options.startNumber))),
-    ...getImageCodecArgs(options.format),
+    ...getImageCodecArgs(options.format, options.quality),
     outputPattern,
   ];
 
@@ -185,44 +226,85 @@ async function runFfmpeg(options: FfmpegRunOptions): Promise<void> {
   });
 }
 
-function getVideoCodecArgs(format: VideoFormat): string[] {
+function getVideoCodecArgs(format: VideoFormat, quality: number): string[] {
   if (format === 'webm-vp9') {
-    return ['-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '30', '-pix_fmt', 'yuv420p'];
+    return [
+      '-c:v',
+      'libvpx-vp9',
+      '-b:v',
+      '0',
+      '-crf',
+      String(mapQualityToRange(quality, 63)),
+      '-pix_fmt',
+      'yuv420p',
+    ];
   }
 
-  if (format === 'mp4-hevc') {
-    return [
+  if (format === 'mp4-hevc' || format === 'mov-hevc' || format === 'mkv-hevc') {
+    const args = [
       '-c:v',
       'libx265',
       '-preset',
       'medium',
       '-crf',
-      '22',
+      String(mapQualityToRange(quality, 40)),
       '-pix_fmt',
       'yuv420p',
-      '-tag:v',
-      'hvc1',
-      '-movflags',
-      '+faststart',
     ];
+
+    if (format === 'mp4-hevc' || format === 'mov-hevc') {
+      args.push('-tag:v', 'hvc1');
+    }
+
+    if (format === 'mp4-hevc') {
+      args.push('-movflags', '+faststart');
+    }
+
+    return args;
   }
 
   if (format === 'prores422') {
-    return ['-c:v', 'prores_ks', '-profile:v', '2', '-pix_fmt', 'yuv422p10le'];
+    return [
+      '-c:v',
+      'prores_ks',
+      '-profile:v',
+      '2',
+      '-qscale:v',
+      String(mapQualityToQscale(quality)),
+      '-pix_fmt',
+      'yuv422p10le',
+    ];
   }
 
-  return [
+  if (format === 'prores4444') {
+    return [
+      '-c:v',
+      'prores_ks',
+      '-profile:v',
+      '4',
+      '-qscale:v',
+      String(mapQualityToQscale(quality)),
+      '-pix_fmt',
+      'yuva444p10le',
+    ];
+  }
+
+  const args = [
     '-c:v',
     'libx264',
     '-preset',
     'medium',
     '-crf',
-    '18',
+    String(mapQualityToRange(quality, 40)),
     '-pix_fmt',
     'yuv420p',
-    '-movflags',
-    '+faststart',
   ];
+
+  if (format === 'mp4-h264') {
+    args.push('-movflags', '+faststart');
+  }
+
+  return args;
 }
 
 function getVideoPostFilters(format: VideoFormat): string[] {
@@ -230,18 +312,66 @@ function getVideoPostFilters(format: VideoFormat): string[] {
     return ['format=yuv422p10le'];
   }
 
+  if (format === 'prores4444') {
+    return ['format=yuva444p10le'];
+  }
+
   return ['format=yuv420p'];
 }
 
-function getImageCodecArgs(format: ImageFormat): string[] {
+function getResizeFilter(
+  resize:
+    | {
+        width: number;
+        height: number;
+      }
+    | undefined
+): string[] {
+  if (!resize) {
+    return [];
+  }
+
+  return [`scale=${resize.width}:${resize.height}:flags=lanczos`];
+}
+
+function mapQualityToRange(quality: number, maxValue: number): number {
+  const normalized = clamp((100 - quality) / 99, 0, 1);
+  return Math.round(normalized * maxValue);
+}
+
+function mapQualityToQscale(quality: number): number {
+  const normalized = clamp((100 - quality) / 99, 0, 1);
+  return Math.max(1, Math.round(1 + normalized * 30));
+}
+
+function mapQualityToPngCompressionLevel(quality: number): number {
+  const normalized = clamp((100 - quality) / 99, 0, 1);
+  return Math.round(normalized * 9);
+}
+
+function mapQualityToGifColors(quality: number): number {
+  const normalized = clamp((quality - 1) / 99, 0, 1);
+  return Math.max(16, Math.round(16 + normalized * 240));
+}
+
+function getImageCodecArgs(format: ImageFormat, quality: number): string[] {
   switch (format) {
     case 'jpg':
-      return ['-q:v', '2'];
+      return ['-q:v', String(mapQualityToJpegQscale(quality))];
+    case 'png':
+      return ['-compression_level', String(mapQualityToPngCompressionLevel(quality))];
+    case 'tga':
+      return ['-pix_fmt', 'rgb24'];
     case 'webp':
-      return ['-compression_level', '6', '-quality', '95'];
+      return ['-compression_level', '6', '-quality', String(clamp(Math.round(quality), 1, 100))];
     default:
       return [];
   }
+}
+
+function mapQualityToJpegQscale(quality: number): number {
+  const normalized = clamp((100 - quality) / 99, 0, 1);
+  return Math.max(1, Math.round(1 + normalized * 30));
 }
 
 function formatSetpts(speed: number): string {

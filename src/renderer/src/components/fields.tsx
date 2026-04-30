@@ -136,12 +136,10 @@ export function PathPicker(props: {
 
 export function InspectorFieldRow(props: { label: string; note?: string; children: ReactNode }) {
   return (
-    <div className="grid gap-2 border-b border-white/6 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[92px_minmax(0,1fr)] sm:items-start sm:gap-3">
-      <div className="pt-1 text-sm font-semibold text-white">{props.label}</div>
-      <div className="space-y-1.5">
-        {props.children}
-        {props.note && <div className="text-xs text-slate-400">{props.note}</div>}
-      </div>
+    <div className="space-y-2 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
+      {props.label && <div className="text-sm font-semibold text-white">{props.label}</div>}
+      {props.children}
+      {props.note && <div className="text-xs leading-5 text-slate-400">{props.note}</div>}
     </div>
   );
 }
@@ -199,6 +197,41 @@ export function StepperField(props: {
       >
         +
       </button>
+    </div>
+  );
+}
+
+export function SliderField(props: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  valueSuffix?: string;
+  valueLabel?: string;
+  minLabel?: string;
+  maxLabel?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="field-shell rounded-[8px] px-3 py-3">
+        <input
+          type="range"
+          min={props.min}
+          max={props.max}
+          step={props.step}
+          value={props.value}
+          onChange={(event) => props.onChange(Number(event.target.value))}
+          className="slider-field w-full"
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="text-slate-500">{props.minLabel ?? String(props.min)}</span>
+        <span className="font-semibold text-slate-100">
+          {props.valueLabel ?? `${trimNumber(props.value)}${props.valueSuffix ?? ''}`}
+        </span>
+        <span className="text-slate-500">{props.maxLabel ?? String(props.max)}</span>
+      </div>
     </div>
   );
 }
@@ -310,35 +343,17 @@ export function BatchOutputPicker(props: {
 }) {
   return (
     <div className="space-y-2">
-      <div className="segmented-shell inline-flex flex-wrap items-center gap-1 rounded-[8px] p-1">
-        <button
-          type="button"
-          onClick={() => props.onModeChange('for-each')}
-          aria-pressed={props.outputMode === 'for-each'}
-          className={`segmented-button rounded-[6px] px-3 py-1.5 text-sm transition ${
-            props.outputMode === 'for-each'
-              ? 'segmented-button-active text-white'
-              : 'text-slate-300'
-          }`}
-        >
-          For each source
-        </button>
-        <button
-          type="button"
-          onClick={() => props.onModeChange('custom-root')}
-          aria-pressed={props.outputMode === 'custom-root'}
-          className={`segmented-button rounded-[6px] px-3 py-1.5 text-sm transition ${
-            props.outputMode === 'custom-root'
-              ? 'segmented-button-active text-white'
-              : 'text-slate-300'
-          }`}
-        >
-          Selected export path
-        </button>
-      </div>
+      <SelectField
+        value={props.outputMode}
+        options={[
+          { value: 'for-each', label: 'For each source' },
+          { value: 'custom-root', label: 'Selected export path' },
+        ]}
+        onChange={props.onModeChange}
+      />
 
       {props.outputMode === 'for-each' ? (
-        <div className="rounded-[8px] border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-slate-400">
+        <div className="px-1 text-xs leading-5 text-slate-400">
           {props.forEachDetail}
         </div>
       ) : (

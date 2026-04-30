@@ -1,12 +1,32 @@
-import { isValidFps, isValidSpeed } from '../../shared/formats';
+import { isValidFps, isValidQuality, isValidSpeed } from '../../shared/formats';
+import { isValidResolutionSettings, type ResolutionSettings } from '../../shared/resolution';
 
 export function validateRateSettings(fps: number, speed: number): void {
+  validateFpsSetting(fps);
+  validateSpeedSetting(speed);
+}
+
+export function validateFpsSetting(fps: number): void {
   if (!isValidFps(fps)) {
     throw new Error('FPS must stay between 1 and 120.');
   }
+}
 
+export function validateSpeedSetting(speed: number): void {
   if (!isValidSpeed(speed)) {
     throw new Error('Speed must stay between 0.25 and 8.');
+  }
+}
+
+export function validateQualitySetting(quality: number): void {
+  if (!isValidQuality(quality)) {
+    throw new Error('Quality must stay between 1 and 100.');
+  }
+}
+
+export function validateResolutionSetting(settings: ResolutionSettings): void {
+  if (!isValidResolutionSettings(settings)) {
+    throw new Error('Custom resolution width and height must stay between 2 and 8192.');
   }
 }
 

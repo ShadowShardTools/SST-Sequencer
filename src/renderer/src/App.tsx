@@ -1,4 +1,6 @@
 import { startTransition, useEffect, useEffectEvent, useState } from 'react';
+import { RATE_LIMITS } from '../../shared/formats';
+import { resolveResolution } from '../../shared/resolution';
 import type {
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
@@ -9,7 +11,6 @@ import type {
 import { type DropNotice } from './components/fields';
 import { CompactSegmentGroup, Panel, ProgressSteps } from './components/shell';
 import {
-  useRenderedVideoPreview,
   useSequenceMotionPreview,
   useSequenceSourcePreview,
   useVideoSourcePreview,
@@ -21,6 +22,7 @@ import {
   getParentDirectory,
   isImagePath,
   isVideoPath,
+  replacePathExtension,
   sortNaturalPaths,
 } from './lib/media';
 import {
@@ -66,12 +68,14 @@ export default function App() {
     initialBatchSequenceToVideo
   );
   const [singleDropNotice, setSingleDropNotice] = useState<DropNotice | null>(null);
+  const [videoToSequenceFpsTouched, setVideoToSequenceFpsTouched] = useState(false);
   const [activity, setActivity] = useState<ActivityState>({
     running: false,
     percent: 0,
     message: 'Choose a workflow, load a source, then run the job.',
     logs: [],
   });
+  const [sequencePreviewRequestKey, setSequencePreviewRequestKey] = useState(0);
 
   const activeTab: TabId = activeMode === 'Single' ? activeSingleTab : activeBatchTab;
   const currentWorkflow = buildWorkflowViewModel(activeTab, {
@@ -87,18 +91,17 @@ export default function App() {
     error: sequenceVideoPreviewError,
   } = useSequenceMotionPreview({
     enabled: activeTab === 'sequence-to-video',
+    requestKey: sequencePreviewRequestKey,
     sourceMode: sequenceToVideo.sourceMode,
     sequenceFolder: sequenceToVideo.sequenceFolder,
     imagePaths: sequenceToVideo.imagePaths,
     fps: sequenceToVideo.fps,
     speed: sequenceToVideo.speed,
+    resolutionMode: sequenceToVideo.resolutionMode,
+    customWidth: sequenceToVideo.customWidth,
+    customHeight: sequenceToVideo.customHeight,
   });
   const videoPreview = useVideoSourcePreview(videoToSequence.videoPath);
-  const renderedVideoPreview = useRenderedVideoPreview({
-    requestKind: activity.requestKind,
-    success: activity.success,
-    summary: activity.summary,
-  });
   const pipelineOptions =
     activeMode === 'Single'
       ? [
@@ -186,6 +189,31 @@ export default function App() {
     setSingleDropNotice(null);
   }, [activeTab]);
 
+  useEffect(() => {
+    setVideoToSequenceFpsTouched(false);
+  }, [videoToSequence.videoPath]);
+
+  useEffect(() => {
+    if (!videoPreview?.videoPath || !videoPreview.frameRate || videoToSequenceFpsTouched) {
+      return;
+    }
+
+    const detectedFps = clampDetectedFps(videoPreview.frameRate);
+    setVideoToSequence((current) =>
+      current.videoPath === videoPreview.videoPath && current.fps !== detectedFps
+        ? {
+            ...current,
+            fps: detectedFps,
+          }
+        : current
+    );
+  }, [videoPreview, videoToSequenceFpsTouched]);
+
+  const canGenerateSequencePreview =
+    currentWorkflow.validation.sourceReady &&
+    currentWorkflow.validation.parametersReady &&
+    activeTab === 'sequence-to-video';
+
   async function pickSequenceFolder(): Promise<void> {
     const folder = await window.mediaApi.pickFolder();
     if (!folder) {
@@ -230,12 +258,14 @@ export default function App() {
   }
 
   async function pickOutputVideo(): Promise<void> {
-    const defaultName = buildSuggestedVideoName(
-      sequenceToVideo.sourceMode === 'folder'
-        ? sequenceToVideo.sequenceFolder
-        : sequenceToVideo.imagePaths?.[0],
-      sequenceToVideo.format
-    );
+    const defaultName = sequenceToVideo.outputPath?.trim()
+      ? replacePathExtension(sequenceToVideo.outputPath, sequenceToVideo.format)
+      : buildSuggestedVideoName(
+          sequenceToVideo.sourceMode === 'folder'
+            ? sequenceToVideo.sequenceFolder
+            : sequenceToVideo.imagePaths?.[0],
+          sequenceToVideo.format
+        );
     const filePath = await window.mediaApi.saveVideoFile(defaultName, sequenceToVideo.format);
     if (!filePath) {
       return;
@@ -434,7 +464,9 @@ export default function App() {
           sequencePreview,
           sequenceToVideo.fps,
           sequenceToVideo.speed,
-          sequenceToVideo.format
+          sequenceToVideo.format,
+          sequenceToVideo.quality,
+          resolveResolution(sequenceToVideo, sequencePreview ?? {}, { enforceEven: true })
         )
       : null;
   const sourceBadgeLabel = getSourceBadgeLabel(activeTab, {
@@ -446,12 +478,21 @@ export default function App() {
     videoPreview,
   });
   const sourceHelperText = getSourceHelperText(activeTab, currentWorkflow.validation);
+  const displayTopHelperText = topHelperText === sourceHelperText ? '' : topHelperText;
   const footerStatus = getFooterStatus(activity);
+
+  function generateSequencePreview(): void {
+    if (!canGenerateSequencePreview || sequenceVideoPreviewLoading) {
+      return;
+    }
+
+    setSequencePreviewRequestKey((current) => current + 1);
+  }
 
   return (
     <div className="min-h-screen bg-[#1a1a1f] text-slate-100">
       <div className="grid min-h-screen grid-rows-[minmax(0,1fr)_42px]">
-        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
           <main className="min-h-0 overflow-y-auto">
             <div className="flex min-h-full flex-col gap-3 p-3">
               <Panel className="py-2.5">
@@ -479,13 +520,15 @@ export default function App() {
                         {currentWorkflow.meta.category}
                       </span>
                     </div>
-                    <p
-                      className={`text-sm ${
-                        topHelperTone === 'warning' ? 'text-amber-300' : 'text-slate-400'
-                      }`}
-                    >
-                      {topHelperText}
-                    </p>
+                    {displayTopHelperText && (
+                      <p
+                        className={`text-sm ${
+                          topHelperTone === 'warning' ? 'text-amber-300' : 'text-slate-400'
+                        }`}
+                      >
+                        {displayTopHelperText}
+                      </p>
+                    )}
                   </div>
 
                   <ProgressSteps steps={progressSteps} />
@@ -502,7 +545,7 @@ export default function App() {
                     sequenceVideoPreview={sequenceVideoPreview}
                     sequenceVideoPreviewLoading={sequenceVideoPreviewLoading}
                     sequenceVideoPreviewError={sequenceVideoPreviewError}
-                    renderedVideoPreview={renderedVideoPreview}
+                    canGenerateSequencePreview={canGenerateSequencePreview}
                     videoToSequence={videoToSequence}
                     setVideoToSequence={setVideoToSequence}
                     videoPreview={videoPreview}
@@ -518,6 +561,7 @@ export default function App() {
                       pickBatchVideoScanRoot,
                       pickBatchSequenceFolders,
                       pickBatchSequenceScanRoot,
+                      generateSequencePreview,
                       handleSequenceSourceDrop,
                       handleVideoSourceDrop,
                     }}
@@ -528,8 +572,8 @@ export default function App() {
           </main>
 
           <aside className="min-h-0 overflow-y-auto border-t border-white/8 bg-[#141418] xl:border-l xl:border-t-0">
-            <div className="flex min-h-full flex-col p-3">
-              <section className="app-surface flex min-h-full flex-col gap-4 p-4">
+            <div className="p-3">
+              <section className="app-surface space-y-4 p-4">
                 <div className="space-y-1">
                   <h2 className="text-sm font-semibold text-white">Parameters</h2>
                   <p className="text-sm text-slate-400">{currentWorkflow.meta.strap}</p>
@@ -542,10 +586,13 @@ export default function App() {
                     setSequenceToVideo={setSequenceToVideo}
                     videoToSequence={videoToSequence}
                     setVideoToSequence={setVideoToSequence}
+                    onVideoToSequenceFpsInput={() => setVideoToSequenceFpsTouched(true)}
                     batchVideoToSequence={batchVideoToSequence}
                     setBatchVideoToSequence={setBatchVideoToSequence}
                     batchSequenceToVideo={batchSequenceToVideo}
                     setBatchSequenceToVideo={setBatchSequenceToVideo}
+                    sequencePreview={sequencePreview}
+                    videoPreview={videoPreview}
                     sequenceSizeEstimate={sequenceSizeEstimate}
                     actions={{
                       pickOutputVideo,
@@ -554,8 +601,6 @@ export default function App() {
                     }}
                   />
                 </div>
-
-                <div className="min-h-6 flex-1" />
 
                 <div className="space-y-2">
                   <button
@@ -614,4 +659,9 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+function clampDetectedFps(value: number): number {
+  const rounded = Math.round(value * 1000) / 1000;
+  return Math.min(RATE_LIMITS.fps.max, Math.max(RATE_LIMITS.fps.min, rounded));
 }

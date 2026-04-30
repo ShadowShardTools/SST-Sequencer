@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import electron from 'electron';
 import type { SequenceInputMode } from '../../shared/formats';
+import type { ResolutionMode } from '../../shared/resolution';
 import {
   generateSequencePreview,
   inspectSequenceSource,
@@ -35,6 +36,9 @@ export function registerPreviewHandlers(): void {
         imagePaths?: string[];
         fps: number;
         speed: number;
+        resolutionMode: ResolutionMode;
+        customWidth?: number;
+        customHeight?: number;
       }
     ) => {
       return generateSequencePreview(input);
@@ -88,7 +92,16 @@ function getVideoMimeType(filePath: string): string {
     case '.mov':
       return 'video/quicktime';
     case '.mp4':
+    case '.m4v':
       return 'video/mp4';
+    case '.avi':
+      return 'video/x-msvideo';
+    case '.mkv':
+      return 'video/x-matroska';
+    case '.gif':
+      return 'image/gif';
+    case '.apng':
+      return 'image/apng';
     default:
       return 'application/octet-stream';
   }

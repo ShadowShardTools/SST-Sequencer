@@ -9,7 +9,6 @@ import {
   getParentDirectory,
   getVideoAspectRatio,
   isDisplayableImagePath,
-  toFileUrl,
   trimNumber,
 } from '../lib/media';
 
@@ -108,71 +107,18 @@ export function VideoPreviewStrip(props: { preview: VideoSourcePreview; onClear:
   );
 }
 
-export function RenderedVideoPreview(props: { preview: VideoSourcePreview; onReveal: () => void }) {
-  const aspectRatio = getVideoAspectRatio(props.preview);
-
-  return (
-    <div className="rounded-[8px] border border-white/8 bg-[#101117] p-3">
-      <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/8 pb-3">
-        <div>
-          <div className="text-sm font-semibold text-white">Rendered video</div>
-          <div className="text-sm text-slate-400">Preview of the generated output.</div>
-        </div>
-        <button
-          type="button"
-          onClick={props.onReveal}
-          className="secondary-button rounded-[8px] px-3 py-1.5 text-sm font-medium"
-        >
-          Reveal file
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        <div className="w-full max-w-[520px]">
-          <video
-            key={props.preview.videoPath}
-            src={toFileUrl(props.preview.videoPath)}
-            controls
-            preload="metadata"
-            className="w-full rounded-[8px] border border-white/8 bg-black object-contain"
-            style={{ aspectRatio }}
-          />
-        </div>
-
-        <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-4">
-          <PreviewMetaItem label="File" value={basenameLabel(props.preview.videoPath)} />
-          <PreviewMetaItem
-            label="Resolution"
-            value={formatResolution(props.preview.width, props.preview.height) || 'Unknown'}
-          />
-          <PreviewMetaItem
-            label="Frame rate"
-            value={
-              props.preview.frameRate ? `${trimNumber(props.preview.frameRate)} fps` : 'Unknown'
-            }
-          />
-          <PreviewMetaItem
-            label="Duration"
-            value={
-              props.preview.durationSeconds
-                ? formatDuration(props.preview.durationSeconds)
-                : 'Unknown'
-            }
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function SequenceMotionPreview(props: {
   preview: VideoSourcePreview | null;
   loading: boolean;
   error: string | null;
+  canGenerate: boolean;
+  onGenerate: () => void;
+  onClear: () => void;
 }) {
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   const aspectRatio = props.preview ? getVideoAspectRatio(props.preview) : '16 / 9';
+  const actionLabel = props.preview ? 'Refresh preview' : 'Generate preview';
 
   useEffect(() => {
     let cancelled = false;
@@ -211,10 +157,31 @@ export function SequenceMotionPreview(props: {
 
   return (
     <div className="rounded-[8px] border border-white/8 bg-[#101117] p-3">
-      <div className="mb-3 border-b border-white/8 pb-3">
-        <div className="text-sm font-semibold text-white">Motion preview</div>
-        <div className="text-sm text-slate-400">
-          Short pre-export playback using the current FPS and speed settings.
+      <div className="mb-3 flex items-start justify-between gap-3 border-b border-white/8 pb-3">
+        <div>
+          <div className="text-sm font-semibold text-white">Motion preview</div>
+          <div className="text-sm text-slate-400">
+            Generate a short preview clip when you want to check playback.
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={props.onGenerate}
+            disabled={!props.canGenerate || props.loading}
+            className="secondary-button rounded-[8px] px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {props.loading ? 'Building...' : actionLabel}
+          </button>
+          {props.preview && (
+            <button
+              type="button"
+              onClick={props.onClear}
+              className="secondary-button rounded-[8px] px-3 py-1.5 text-sm font-medium"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -227,6 +194,13 @@ export function SequenceMotionPreview(props: {
       {!props.loading && props.error && (
         <div className="rounded-[8px] border border-rose-400/20 bg-rose-400/8 px-3 py-2 text-sm text-rose-200">
           {props.error}
+        </div>
+      )}
+
+      {!props.loading && !props.error && !props.preview && (
+        <div className="rounded-[8px] border border-white/8 bg-black/20 px-3 py-8 text-center text-sm text-slate-400">
+          Preview generation is manual to avoid rebuilding a temporary clip on every source or
+          timing change.
         </div>
       )}
 
@@ -353,9 +327,66 @@ function PreviewThumbnail(props: { path: string; sizeClass?: string }) {
 }
 
 function VideoPreviewThumbnail(props: { path: string }) {
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (isDisplayableImagePath(props.path)) {
+      setVideoSrc(null);
+      setFailed(false);
+      return;
+    }
+
+    setVideoSrc(null);
+    setFailed(false);
+
+    void window.mediaApi
+      .loadVideoPreview(props.path)
+      .then((preview) => {
+        if (!cancelled) {
+          if (preview) {
+            setVideoSrc(preview);
+          } else {
+            setFailed(true);
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.path]);
+
+  if (isDisplayableImagePath(props.path)) {
+    return <PreviewThumbnail path={props.path} sizeClass="h-[88px] w-[88px]" />;
+  }
+
+  if (failed) {
+    return (
+      <div className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-[8px] border border-white/8 bg-white/[0.03] text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+        {getExtension(props.path).replace('.', '') || 'VID'}
+      </div>
+    );
+  }
+
+  if (!videoSrc) {
+    return (
+      <div className="flex h-[88px] w-[88px] shrink-0 items-center justify-center rounded-[8px] border border-white/8 bg-white/[0.03] text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">
+        Loading
+      </div>
+    );
+  }
+
   return (
     <video
-      src={toFileUrl(props.path)}
+      src={videoSrc}
       muted
       playsInline
       preload="metadata"
