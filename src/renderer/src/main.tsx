@@ -112,7 +112,12 @@ function buildFatalErrorScreen(details: FatalErrorDetails) {
           ) : null}
 
           <div
-            style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+            }}
           >
             <div style={{ fontSize: '13px', color: '#94a3b8' }}>
               The renderer failed before the app UI could finish loading.

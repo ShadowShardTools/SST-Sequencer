@@ -3,6 +3,7 @@ export interface SequenceSourcePreview {
   frameCount: number;
   width?: number;
   height?: number;
+  hasAlpha?: boolean;
 }
 
 export interface VideoSourcePreview {
@@ -11,4 +12,5 @@ export interface VideoSourcePreview {
   height?: number;
   frameRate?: number;
   durationSeconds?: number;
+  hasAlpha?: boolean;
 }

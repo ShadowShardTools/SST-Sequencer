@@ -1,4 +1,17 @@
-import { isValidFps, isValidQuality, isValidSpeed } from '../../shared/formats';
+import {
+  getAlphaModeLabel,
+  getUpscalerLabel,
+  isValidAlphaMode,
+  isValidFps,
+  isValidQuality,
+  isValidSpeed,
+  isValidUpscaleMode,
+  isUpscalerSupportedOnPlatform,
+  isValidUpscalerType,
+  type UpscaleMode,
+  type UpscalerType,
+  type AlphaMode,
+} from '../../shared/formats';
 import { isValidResolutionSettings, type ResolutionSettings } from '../../shared/resolution';
 
 export function validateRateSettings(fps: number, speed: number): void {
@@ -27,6 +40,28 @@ export function validateQualitySetting(quality: number): void {
 export function validateResolutionSetting(settings: ResolutionSettings): void {
   if (!isValidResolutionSettings(settings)) {
     throw new Error('Custom resolution width and height must stay between 2 and 8192.');
+  }
+}
+
+export function validateUpscaleMode(mode: UpscaleMode): void {
+  if (!isValidUpscaleMode(mode)) {
+    throw new Error('Upscale mode is invalid.');
+  }
+}
+
+export function validateUpscalerType(upscaler: UpscalerType): void {
+  if (!isValidUpscalerType(upscaler)) {
+    throw new Error('Upscaler is invalid.');
+  }
+
+  if (!isUpscalerSupportedOnPlatform(upscaler, process.platform)) {
+    throw new Error(`${getUpscalerLabel(upscaler)} is not available on ${process.platform}.`);
+  }
+}
+
+export function validateAlphaMode(alphaMode: AlphaMode): void {
+  if (!isValidAlphaMode(alphaMode)) {
+    throw new Error(`Alpha mode is invalid: ${getAlphaModeLabel(alphaMode)}.`);
   }
 }
 

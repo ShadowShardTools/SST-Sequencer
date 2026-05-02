@@ -1,10 +1,14 @@
 import type { Dispatch, SetStateAction } from 'react';
 import {
+  ALPHA_MODE_OPTIONS,
   QUALITY_LIMITS,
   IMAGE_FORMAT_OPTIONS,
   RATE_LIMITS,
+  UPSCALE_OPTIONS,
   VIDEO_FORMAT_OPTIONS,
   type ImageFormat,
+  type SelectOption,
+  type UpscalerType,
   type VideoFormat,
 } from '../../../../shared/formats';
 import { RESOLUTION_LIMITS } from '../../../../shared/resolution';
@@ -26,8 +30,10 @@ import {
 } from '../../components/fields';
 import {
   getAspectLockedDimensions,
+  getAlphaModeNote,
   getImageAdjustmentUi,
   getResolutionControlUi,
+  getUpscaleNote,
   getVideoQualityNote,
   replacePathExtension,
 } from '../../lib/media';
@@ -50,6 +56,7 @@ export function WorkflowParameterFields(props: {
   setBatchVideoToSequence: Dispatch<SetStateAction<BatchVideoToSequenceJob>>;
   batchSequenceToVideo: BatchSequenceToVideoJob;
   setBatchSequenceToVideo: Dispatch<SetStateAction<BatchSequenceToVideoJob>>;
+  upscalerOptions: ReadonlyArray<SelectOption<UpscalerType>>;
   sequencePreview: SequenceSourcePreview | null;
   videoPreview: VideoSourcePreview | null;
   sequenceSizeEstimate: string | null;
@@ -110,10 +117,7 @@ export function WorkflowParameterFields(props: {
 
           <InspectorFieldRow
             label="Quality"
-            note={getVideoQualityNote(
-              props.sequenceToVideo.format,
-              props.sequenceToVideo.quality
-            )}
+            note={getVideoQualityNote(props.sequenceToVideo.format, props.sequenceToVideo.quality)}
           >
             <SliderField
               value={props.sequenceToVideo.quality}
@@ -146,10 +150,16 @@ export function WorkflowParameterFields(props: {
                       };
                     }
 
-                    const baseResolution =
-                      sequenceResolutionUi.resolved ??
-                      getAspectLockedDimensions(props.sequencePreview, current.customWidth, undefined, 'width') ??
-                      { width: current.customWidth || 1920, height: current.customHeight || 1080 };
+                    const baseResolution = sequenceResolutionUi.resolved ??
+                      getAspectLockedDimensions(
+                        props.sequencePreview,
+                        current.customWidth,
+                        undefined,
+                        'width'
+                      ) ?? {
+                        width: current.customWidth || 1920,
+                        height: current.customHeight || 1080,
+                      };
 
                     return {
                       ...current,
@@ -216,6 +226,54 @@ export function WorkflowParameterFields(props: {
                 </div>
               )}
             </div>
+          </InspectorFieldRow>
+
+          <InspectorFieldRow label="Upscaler">
+            <SelectField
+              value={props.sequenceToVideo.upscaler}
+              options={props.upscalerOptions}
+              onChange={(value) =>
+                props.setSequenceToVideo((current) => ({
+                  ...current,
+                  upscaler: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Upscale"
+            note={getUpscaleNote(props.sequenceToVideo.upscaler, props.sequenceToVideo.upscaleMode)}
+          >
+            <SelectField
+              value={props.sequenceToVideo.upscaleMode}
+              options={UPSCALE_OPTIONS}
+              onChange={(value) =>
+                props.setSequenceToVideo((current) => ({
+                  ...current,
+                  upscaleMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Alpha mode"
+            note={getAlphaModeNote(
+              props.sequenceToVideo.alphaMode,
+              props.sequencePreview?.hasAlpha
+            )}
+          >
+            <SelectField
+              value={props.sequenceToVideo.alphaMode}
+              options={ALPHA_MODE_OPTIONS}
+              onChange={(value) =>
+                props.setSequenceToVideo((current) => ({
+                  ...current,
+                  alphaMode: value,
+                }))
+              }
+            />
           </InspectorFieldRow>
 
           <InspectorFieldRow label="Format" note={props.sequenceSizeEstimate ?? undefined}>
@@ -313,10 +371,16 @@ export function WorkflowParameterFields(props: {
                       };
                     }
 
-                    const baseResolution =
-                      videoResolutionUi.resolved ??
-                      getAspectLockedDimensions(props.videoPreview, current.customWidth, undefined, 'width') ??
-                      { width: current.customWidth || 1920, height: current.customHeight || 1080 };
+                    const baseResolution = videoResolutionUi.resolved ??
+                      getAspectLockedDimensions(
+                        props.videoPreview,
+                        current.customWidth,
+                        undefined,
+                        'width'
+                      ) ?? {
+                        width: current.customWidth || 1920,
+                        height: current.customHeight || 1080,
+                      };
 
                     return {
                       ...current,
@@ -385,10 +449,52 @@ export function WorkflowParameterFields(props: {
             </div>
           </InspectorFieldRow>
 
+          <InspectorFieldRow label="Upscaler">
+            <SelectField
+              value={props.videoToSequence.upscaler}
+              options={props.upscalerOptions}
+              onChange={(value) =>
+                props.setVideoToSequence((current) => ({
+                  ...current,
+                  upscaler: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
           <InspectorFieldRow
-            label={singleImageAdjustment.label}
-            note={singleImageAdjustment.note}
+            label="Upscale"
+            note={getUpscaleNote(props.videoToSequence.upscaler, props.videoToSequence.upscaleMode)}
           >
+            <SelectField
+              value={props.videoToSequence.upscaleMode}
+              options={UPSCALE_OPTIONS}
+              onChange={(value) =>
+                props.setVideoToSequence((current) => ({
+                  ...current,
+                  upscaleMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Alpha mode"
+            note={getAlphaModeNote(props.videoToSequence.alphaMode, props.videoPreview?.hasAlpha)}
+          >
+            <SelectField
+              value={props.videoToSequence.alphaMode}
+              options={ALPHA_MODE_OPTIONS}
+              onChange={(value) =>
+                props.setVideoToSequence((current) => ({
+                  ...current,
+                  alphaMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow label={singleImageAdjustment.label} note={singleImageAdjustment.note}>
             {singleImageAdjustment.adjustable ? (
               <SliderField
                 value={props.videoToSequence.quality}
@@ -529,10 +635,7 @@ export function WorkflowParameterFields(props: {
             />
           </InspectorFieldRow>
 
-          <InspectorFieldRow
-            label={batchImageAdjustment.label}
-            note={batchImageAdjustment.note}
-          >
+          <InspectorFieldRow label={batchImageAdjustment.label} note={batchImageAdjustment.note}>
             {batchImageAdjustment.adjustable ? (
               <SliderField
                 value={props.batchVideoToSequence.quality}

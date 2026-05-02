@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import {
+  getUpscaleFactor,
+  getUpscalerLabel,
+  type AlphaMode,
+  type UpscalerType,
+} from '../shared/formats';
 import type {
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
@@ -11,8 +19,19 @@ import type {
   SequenceToVideoJob,
   VideoToSequenceJob,
 } from '../shared/jobs';
-import { createImagesFromVideo, createVideoFromImages } from './media/ffmpeg';
+import {
+  createImagesFromImageSequence,
+  createImagesFromVideo,
+  createVideoFromImages,
+} from './media/ffmpeg';
 import { probeMediaInfo } from './media/ffprobe';
+import { upscaleImageDirectory as upscaleWithAnime4kcpp } from './media/anime4kcpp';
+import { upscaleImageDirectory as upscaleWithDat } from './media/dat';
+import { upscaleImageDirectory as upscaleWithRealcugan } from './media/realcugan';
+import { upscaleImageDirectory as upscaleWithRealEsrgan } from './media/realesrgan';
+import { upscaleImageDirectory as upscaleWithRealSr } from './media/realsr';
+import { upscaleImageDirectory as upscaleWithSwinIr } from './media/swinir';
+import { upscaleImageDirectory as upscaleWithWaifu2x } from './media/waifu2x';
 import { resolveSequenceResizeTarget, resolveVideoResizeTarget } from './media/resize';
 import {
   dedupeAndSort,
@@ -34,6 +53,9 @@ import {
   validateRateSettings,
   validateResolutionSetting,
   validateSpeedSetting,
+  validateAlphaMode,
+  validateUpscaleMode,
+  validateUpscalerType,
 } from './media/validation';
 
 export {
@@ -110,34 +132,108 @@ async function runSequenceToVideoJob(
   validateRateSettings(request.fps, request.speed);
   validateQualitySetting(request.quality);
   validateResolutionSetting(request);
+  validateUpscalerType(request.upscaler);
+  validateUpscaleMode(request.upscaleMode);
+  validateAlphaMode(request.alphaMode);
 
-  const imagePaths = await resolveSequenceInput(request);
-  if (imagePaths.length === 0) {
+  const sourceImagePaths = await resolveSequenceInput(request);
+  if (sourceImagePaths.length === 0) {
     throw new Error('No images were found for the selected sequence.');
   }
 
-  const resize = await resolveSequenceResizeTarget(request, imagePaths, {
+  const resize = await resolveSequenceResizeTarget(request, sourceImagePaths, {
     enforceEven: true,
   });
-  const outputPath = await resolveSingleSequenceOutput(request, imagePaths);
-  emitter.log(`Encoding ${imagePaths.length} frames into ${basename(outputPath)}.`);
+  const outputPath = await resolveSingleSequenceOutput(request, sourceImagePaths);
+  const upscaleFactor = getUpscaleFactor(request.upscaleMode);
+  const sourceMediaInfo = await probeMediaInfo(sourceImagePaths[0]);
+  const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
+  let workingImagePaths = sourceImagePaths;
+  let workingResize:
+    | {
+        width: number;
+        height: number;
+        flags?: 'lanczos' | 'neighbor' | 'bilinear';
+      }
+    | undefined = resize;
+  let tempBaseDir = '';
+  let tempUpscaledDir = '';
 
-  await createVideoFromImages({
-    imagePaths,
-    outputPath,
-    fps: request.fps,
-    speed: request.speed,
-    quality: request.quality,
-    format: request.format,
-    resize,
-    emitter,
-    onProgress: (percent) =>
-      emitter.progress(percent, `Encoding ${basename(outputPath)}`, {
-        currentItem: basename(outputPath),
-        overallIndex: 1,
-        overallTotal: 1,
-      }),
-  });
+  try {
+    if (upscaleFactor > 1) {
+      if (request.upscaler === 'nearest') {
+        emitter.log(
+          `Applying ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale from the selected base resolution.`
+        );
+        const nearestResize = resolveUpscaledResize(
+          resize,
+          sourceMediaInfo.width,
+          sourceMediaInfo.height,
+          upscaleFactor
+        );
+        workingResize = nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize;
+      } else {
+        tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-base-'));
+        tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
+
+        emitter.log(
+          `Preparing frames for ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale.`
+        );
+        await createImagesFromImageSequence({
+          imagePaths: sourceImagePaths,
+          outputDir: tempBaseDir,
+          format: 'png',
+          quality: 100,
+          prefix: 'frame',
+          startNumber: 1,
+          resize,
+          emitter,
+        });
+
+        emitter.log(
+          `Running ${getUpscalerLabel(request.upscaler)} ${request.upscaleMode} on ${sourceImagePaths.length} frame(s).`
+        );
+        await upscaleDirectoryUsingSelectedUpscaler({
+          upscaler: request.upscaler,
+          inputDir: tempBaseDir,
+          outputDir: tempUpscaledDir,
+          scale: upscaleFactor,
+          preserveAlpha,
+          alphaMode: request.alphaMode,
+          emitter,
+        });
+
+        workingImagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+        workingResize = undefined;
+      }
+    }
+
+    emitter.log(`Encoding ${workingImagePaths.length} frames into ${basename(outputPath)}.`);
+
+    await createVideoFromImages({
+      imagePaths: workingImagePaths,
+      outputPath,
+      fps: request.fps,
+      speed: request.speed,
+      quality: request.quality,
+      format: request.format,
+      resize: workingResize,
+      emitter,
+      onProgress: (percent) =>
+        emitter.progress(percent, `Encoding ${basename(outputPath)}`, {
+          currentItem: basename(outputPath),
+          overallIndex: 1,
+          overallTotal: 1,
+        }),
+    });
+  } finally {
+    if (tempBaseDir) {
+      await rm(tempBaseDir, { recursive: true, force: true });
+    }
+    if (tempUpscaledDir) {
+      await rm(tempUpscaledDir, { recursive: true, force: true });
+    }
+  }
 
   return {
     headline: `Created video: ${outputPath}`,
@@ -155,6 +251,9 @@ async function runVideoToSequenceJob(
   validateRateSettings(request.fps, request.speed);
   validateQualitySetting(request.quality);
   validateResolutionSetting(request);
+  validateUpscalerType(request.upscaler);
+  validateUpscaleMode(request.upscaleMode);
+  validateAlphaMode(request.alphaMode);
 
   const videoPath = request.videoPath?.trim();
   if (!videoPath) {
@@ -163,26 +262,123 @@ async function runVideoToSequenceJob(
 
   const resize = await resolveVideoResizeTarget(request, videoPath);
   const outputDir = await resolveSingleSequenceDirectory(request);
-  emitter.log(`Extracting frames from ${basename(videoPath)}.`);
+  const upscaleFactor = getUpscaleFactor(request.upscaleMode);
+  const sourceMediaInfo = await probeMediaInfo(videoPath);
+  const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
+  let tempBaseDir = '';
+  let tempUpscaledDir = '';
 
-  await createImagesFromVideo({
-    videoPath,
-    outputDir,
-    fps: request.fps,
-    speed: request.speed,
-    quality: request.quality,
-    resize,
-    format: request.format,
-    prefix: request.prefix,
-    startNumber: request.startNumber,
-    emitter,
-    onProgress: (percent) =>
-      emitter.progress(percent, `Extracting ${basename(videoPath)}`, {
-        currentItem: basename(videoPath),
-        overallIndex: 1,
-        overallTotal: 1,
-      }),
-  });
+  try {
+    if (upscaleFactor > 1) {
+      if (request.upscaler === 'nearest') {
+        const nearestResize = resolveUpscaledResize(
+          resize,
+          sourceMediaInfo.width,
+          sourceMediaInfo.height,
+          upscaleFactor
+        );
+        emitter.log(
+          `Extracting frames from ${basename(videoPath)} with ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale.`
+        );
+        await createImagesFromVideo({
+          videoPath,
+          outputDir,
+          fps: request.fps,
+          speed: request.speed,
+          quality: request.quality,
+          resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
+          format: request.format,
+          prefix: request.prefix,
+          startNumber: request.startNumber,
+          emitter,
+          onProgress: (percent) =>
+            emitter.progress(percent, `Extracting ${basename(videoPath)}`, {
+              currentItem: basename(videoPath),
+              overallIndex: 1,
+              overallTotal: 1,
+            }),
+        });
+      } else {
+        tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-base-'));
+        tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
+
+        emitter.log(
+          `Extracting base frames from ${basename(videoPath)} for ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale.`
+        );
+        await createImagesFromVideo({
+          videoPath,
+          outputDir: tempBaseDir,
+          fps: request.fps,
+          speed: request.speed,
+          quality: 100,
+          resize,
+          format: 'png',
+          prefix: 'frame',
+          startNumber: 1,
+          emitter,
+          onProgress: (percent) =>
+            emitter.progress(percent * 0.45, `Extracting ${basename(videoPath)}`, {
+              currentItem: basename(videoPath),
+              overallIndex: 1,
+              overallTotal: 1,
+            }),
+        });
+
+        emitter.log(
+          `Running ${getUpscalerLabel(request.upscaler)} ${request.upscaleMode} on extracted frames.`
+        );
+        await upscaleDirectoryUsingSelectedUpscaler({
+          upscaler: request.upscaler,
+          inputDir: tempBaseDir,
+          outputDir: tempUpscaledDir,
+          scale: upscaleFactor,
+          preserveAlpha,
+          alphaMode: request.alphaMode,
+          emitter,
+        });
+
+        const upscaledImagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+        emitter.log(`Writing ${request.format.toUpperCase()} sequence to ${basename(outputDir)}.`);
+        await createImagesFromImageSequence({
+          imagePaths: upscaledImagePaths,
+          outputDir,
+          format: request.format,
+          quality: request.quality,
+          prefix: request.prefix,
+          startNumber: request.startNumber,
+          emitter,
+        });
+      }
+    } else {
+      emitter.log(`Extracting frames from ${basename(videoPath)}.`);
+
+      await createImagesFromVideo({
+        videoPath,
+        outputDir,
+        fps: request.fps,
+        speed: request.speed,
+        quality: request.quality,
+        resize,
+        format: request.format,
+        prefix: request.prefix,
+        startNumber: request.startNumber,
+        emitter,
+        onProgress: (percent) =>
+          emitter.progress(percent, `Extracting ${basename(videoPath)}`, {
+            currentItem: basename(videoPath),
+            overallIndex: 1,
+            overallTotal: 1,
+          }),
+      });
+    }
+  } finally {
+    if (tempBaseDir) {
+      await rm(tempBaseDir, { recursive: true, force: true });
+    }
+    if (tempUpscaledDir) {
+      await rm(tempUpscaledDir, { recursive: true, force: true });
+    }
+  }
 
   return {
     headline: `Created image sequence: ${outputDir}`,
@@ -432,6 +628,65 @@ async function resolveBatchVideoSourceFps(
     'error'
   );
   return safeFallbackFps;
+}
+
+function resolveUpscaledResize(
+  baseResize: { width: number; height: number } | undefined,
+  sourceWidth: number | undefined,
+  sourceHeight: number | undefined,
+  upscaleFactor: number
+): { width: number; height: number } | undefined {
+  if (baseResize) {
+    return {
+      width: baseResize.width * upscaleFactor,
+      height: baseResize.height * upscaleFactor,
+    };
+  }
+
+  if (!sourceWidth || !sourceHeight) {
+    return undefined;
+  }
+
+  return {
+    width: sourceWidth * upscaleFactor,
+    height: sourceHeight * upscaleFactor,
+  };
+}
+
+async function upscaleDirectoryUsingSelectedUpscaler(options: {
+  upscaler: UpscalerType;
+  inputDir: string;
+  outputDir: string;
+  scale: number;
+  preserveAlpha: boolean;
+  alphaMode: AlphaMode;
+  emitter: JobEmitter;
+}): Promise<void> {
+  switch (options.upscaler) {
+    case 'anime4kcpp':
+      await upscaleWithAnime4kcpp(options);
+      return;
+    case 'realcugan':
+      await upscaleWithRealcugan(options);
+      return;
+    case 'waifu2x':
+      await upscaleWithWaifu2x(options);
+      return;
+    case 'realsr':
+      await upscaleWithRealSr(options);
+      return;
+    case 'swinir':
+      await upscaleWithSwinIr(options);
+      return;
+    case 'dat':
+      await upscaleWithDat(options);
+      return;
+    case 'realesrgan-anime-video':
+      await upscaleWithRealEsrgan(options);
+      return;
+    default:
+      throw new Error(`Unsupported AI upscaler: ${getUpscalerLabel(options.upscaler)}.`);
+  }
 }
 
 function getStartMessage(request: JobRequest): string {

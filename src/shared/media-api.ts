@@ -1,9 +1,15 @@
-import type { SequenceInputMode, VideoFormat } from './formats';
+import type { SequenceInputMode, UpscalerType, VideoFormat } from './formats';
 import type { JobEvent, JobRequest, JobResult } from './jobs';
 import type { SequenceSourcePreview, VideoSourcePreview } from './previews';
 import type { ResolutionMode } from './resolution';
 
+export interface MediaRuntimeInfo {
+  platform: NodeJS.Platform;
+  supportedUpscalers: ReadonlyArray<UpscalerType>;
+}
+
 export interface MediaApi {
+  getRuntimeInfo(): MediaRuntimeInfo;
   pickImageFiles(): Promise<string[]>;
   pickSequenceFolders(): Promise<string[]>;
   pickVideoFiles(): Promise<string[]>;

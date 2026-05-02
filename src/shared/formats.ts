@@ -12,6 +12,17 @@ export type VideoFormat =
   | 'gif-palette';
 
 export type ImageFormat = 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff' | 'tga';
+export type UpscaleMode = 'off' | '2x' | '3x' | '4x';
+export type UpscalerType =
+  | 'realesrgan-anime-video'
+  | 'realcugan'
+  | 'waifu2x'
+  | 'realsr'
+  | 'swinir'
+  | 'dat'
+  | 'anime4kcpp'
+  | 'nearest';
+export type AlphaMode = 'auto' | 'straight' | 'premultiplied';
 export type SequenceInputMode = 'folder' | 'images';
 export type BatchOutputMode = 'for-each' | 'custom-root';
 export type BatchVideoSourceMode = 'files' | 'scan-root';
@@ -70,7 +81,68 @@ export const IMAGE_FORMAT_OPTIONS: ReadonlyArray<SelectOption<ImageFormat>> = [
   { value: 'tiff', label: 'TIFF' },
   { value: 'tga', label: 'TGA' },
 ];
+export const UPSCALE_OPTIONS: ReadonlyArray<SelectOption<UpscaleMode>> = [
+  { value: 'off', label: 'Off' },
+  { value: '2x', label: '2x' },
+  { value: '3x', label: '3x' },
+  { value: '4x', label: '4x' },
+];
+export const UPSCALER_OPTIONS: ReadonlyArray<SelectOption<UpscalerType>> = [
+  {
+    value: 'realesrgan-anime-video',
+    label: 'Anime / stylized - Real-ESRGAN Anime Video v3',
+  },
+  {
+    value: 'realcugan',
+    label: 'Anime / stylized - Real-CUGAN',
+  },
+  {
+    value: 'waifu2x',
+    label: 'Anime / stylized - Waifu2x',
+  },
+  {
+    value: 'realsr',
+    label: 'General photo - RealSR',
+  },
+  {
+    value: 'swinir',
+    label: 'General clean - SwinIR',
+  },
+  {
+    value: 'dat',
+    label: 'General detailed - DAT',
+  },
+  {
+    value: 'anime4kcpp',
+    label: 'Anime / stylized - Anime4KCPP',
+  },
+  {
+    value: 'nearest',
+    label: 'Pixel art - Nearest neighbor',
+  },
+];
+export const ALPHA_MODE_OPTIONS: ReadonlyArray<SelectOption<AlphaMode>> = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'straight', label: 'Force straight alpha' },
+  { value: 'premultiplied', label: 'Force premultiplied alpha' },
+];
 export const VIDEO_OUTPUT_EXTENSIONS = ['mp4', 'mov', 'mkv', 'webm', 'gif', 'apng'] as const;
+
+export function getSupportedUpscalerOptions(
+  platform: NodeJS.Platform | string
+): ReadonlyArray<SelectOption<UpscalerType>> {
+  return UPSCALER_OPTIONS.filter((option) => isUpscalerSupportedOnPlatform(option.value, platform));
+}
+
+export function getSupportedUpscalerValues(
+  platform: NodeJS.Platform | string
+): ReadonlyArray<UpscalerType> {
+  return getSupportedUpscalerOptions(platform).map((option) => option.value);
+}
+
+export function getDefaultUpscalerForPlatform(platform: NodeJS.Platform | string): UpscalerType {
+  return getSupportedUpscalerValues(platform)[0] ?? 'nearest';
+}
 
 export function getVideoFormatExtension(format: VideoFormat): string {
   switch (format) {
@@ -143,10 +215,104 @@ export function isValidSpeed(value: number): boolean {
 
 export function isValidQuality(value: number): boolean {
   return (
-    Number.isFinite(value) &&
-    value >= QUALITY_LIMITS.video.min &&
-    value <= QUALITY_LIMITS.video.max
+    Number.isFinite(value) && value >= QUALITY_LIMITS.video.min && value <= QUALITY_LIMITS.video.max
   );
+}
+
+export function isValidUpscaleMode(value: string): value is UpscaleMode {
+  return value === 'off' || value === '2x' || value === '3x' || value === '4x';
+}
+
+export function isValidUpscalerType(value: string): value is UpscalerType {
+  return (
+    value === 'realesrgan-anime-video' ||
+    value === 'realcugan' ||
+    value === 'waifu2x' ||
+    value === 'realsr' ||
+    value === 'swinir' ||
+    value === 'dat' ||
+    value === 'anime4kcpp' ||
+    value === 'nearest'
+  );
+}
+
+export function isValidAlphaMode(value: string): value is AlphaMode {
+  return value === 'auto' || value === 'straight' || value === 'premultiplied';
+}
+
+export function getAlphaModeLabel(value: AlphaMode): string {
+  switch (value) {
+    case 'straight':
+      return 'Straight alpha';
+    case 'premultiplied':
+      return 'Premultiplied alpha';
+    case 'auto':
+    default:
+      return 'Auto-detect';
+  }
+}
+
+export function isUpscalerSupportedOnPlatform(
+  upscaler: UpscalerType,
+  platform: NodeJS.Platform | string
+): boolean {
+  switch (upscaler) {
+    case 'anime4kcpp':
+      return platform === 'win32';
+    case 'waifu2x':
+    case 'realsr':
+    case 'swinir':
+    case 'dat':
+    case 'realesrgan-anime-video':
+    case 'realcugan':
+    case 'nearest':
+    default:
+      return true;
+  }
+}
+
+export function getUpscaleFactor(mode: UpscaleMode): number {
+  switch (mode) {
+    case '2x':
+      return 2;
+    case '3x':
+      return 3;
+    case '4x':
+      return 4;
+    case 'off':
+    default:
+      return 1;
+  }
+}
+
+export function getUpscalerLabel(value: UpscalerType): string {
+  switch (value) {
+    case 'nearest':
+      return 'Nearest neighbor';
+    case 'anime4kcpp':
+      return 'Anime4KCPP';
+    case 'waifu2x':
+      return 'Waifu2x';
+    case 'realsr':
+      return 'RealSR';
+    case 'swinir':
+      return 'SwinIR';
+    case 'dat':
+      return 'DAT';
+    case 'realcugan':
+      return 'Real-CUGAN';
+    case 'realesrgan-anime-video':
+    default:
+      return 'Real-ESRGAN Anime Video v3';
+  }
+}
+
+export function imageFormatSupportsAlpha(format: ImageFormat): boolean {
+  return format === 'png' || format === 'webp' || format === 'tiff' || format === 'tga';
+}
+
+export function videoFormatSupportsAlpha(format: VideoFormat): boolean {
+  return format === 'apng' || format === 'prores4444';
 }
 
 function stripKnownVideoOutputExtensions(filePath: string): string {

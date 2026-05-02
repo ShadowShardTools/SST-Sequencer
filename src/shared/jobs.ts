@@ -1,9 +1,12 @@
 import type {
+  AlphaMode,
   BatchOutputMode,
   BatchSequenceSourceMode,
   BatchVideoSourceMode,
   ImageFormat,
   SequenceInputMode,
+  UpscaleMode,
+  UpscalerType,
   VideoFormat,
 } from './formats';
 import type { ResolutionMode } from './resolution';
@@ -20,6 +23,9 @@ export interface SequenceToVideoJob {
   resolutionMode: ResolutionMode;
   customWidth?: number;
   customHeight?: number;
+  upscaler: UpscalerType;
+  upscaleMode: UpscaleMode;
+  alphaMode: AlphaMode;
   format: VideoFormat;
 }
 
@@ -33,6 +39,9 @@ export interface VideoToSequenceJob {
   resolutionMode: ResolutionMode;
   customWidth?: number;
   customHeight?: number;
+  upscaler: UpscalerType;
+  upscaleMode: UpscaleMode;
+  alphaMode: AlphaMode;
   format: ImageFormat;
   prefix: string;
   startNumber: number;

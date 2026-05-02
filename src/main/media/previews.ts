@@ -43,6 +43,7 @@ export async function inspectSequenceSource(input: {
     frameCount: imagePaths.length,
     width: mediaInfo.width,
     height: mediaInfo.height,
+    hasAlpha: mediaInfo.hasAlpha,
   };
 }
 
@@ -59,6 +60,7 @@ export async function inspectVideoSource(videoPath: string): Promise<VideoSource
     height: mediaInfo.height,
     frameRate: mediaInfo.frameRate,
     durationSeconds: mediaInfo.durationSeconds,
+    hasAlpha: mediaInfo.hasAlpha,
   };
 }
 

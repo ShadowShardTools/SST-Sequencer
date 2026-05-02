@@ -1,4 +1,11 @@
-import { isValidFps, isValidQuality, isValidSpeed } from '../../../../shared/formats';
+import {
+  isValidAlphaMode,
+  isValidFps,
+  isValidQuality,
+  isValidSpeed,
+  isValidUpscaleMode,
+  isValidUpscalerType,
+} from '../../../../shared/formats';
 import { isValidResolutionSettings } from '../../../../shared/resolution';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../../shared/previews';
 import { basenameLabel, formatResolution } from '../../lib/media';
@@ -313,7 +320,10 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
     isValidFps(job.fps) &&
     isValidSpeed(job.speed) &&
     isValidQuality(job.quality) &&
-    isValidResolutionSettings(job);
+    isValidResolutionSettings(job) &&
+    isValidUpscalerType(job.upscaler) &&
+    isValidUpscaleMode(job.upscaleMode) &&
+    isValidAlphaMode(job.alphaMode);
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -332,6 +342,15 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
   if (!isValidResolutionSettings(job)) {
     blocking.push('Set custom resolution width and height between 2 and 8192.');
   }
+  if (!isValidUpscalerType(job.upscaler)) {
+    blocking.push('Choose a valid upscaler.');
+  }
+  if (!isValidUpscaleMode(job.upscaleMode)) {
+    blocking.push('Set a valid upscale amount.');
+  }
+  if (!isValidAlphaMode(job.alphaMode)) {
+    blocking.push('Choose a valid alpha mode.');
+  }
 
   return {
     ready: blocking.length === 0,
@@ -347,9 +366,20 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
   const rateReady = isValidFps(job.fps) && isValidSpeed(job.speed);
   const qualityReady = isValidQuality(job.quality);
   const resolutionReady = isValidResolutionSettings(job);
+  const upscalerReady = isValidUpscalerType(job.upscaler);
+  const upscaleReady = isValidUpscaleMode(job.upscaleMode);
+  const alphaReady = isValidAlphaMode(job.alphaMode);
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
-  const parametersReady = rateReady && qualityReady && resolutionReady && prefixReady && numberingReady;
+  const parametersReady =
+    rateReady &&
+    qualityReady &&
+    resolutionReady &&
+    upscalerReady &&
+    upscaleReady &&
+    alphaReady &&
+    prefixReady &&
+    numberingReady;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -367,6 +397,15 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
   }
   if (!resolutionReady) {
     blocking.push('Set custom resolution width and height between 2 and 8192.');
+  }
+  if (!upscalerReady) {
+    blocking.push('Choose a valid upscaler.');
+  }
+  if (!upscaleReady) {
+    blocking.push('Set a valid upscale amount.');
+  }
+  if (!alphaReady) {
+    blocking.push('Choose a valid alpha mode.');
   }
   if (!prefixReady) {
     blocking.push('Enter a frame prefix.');

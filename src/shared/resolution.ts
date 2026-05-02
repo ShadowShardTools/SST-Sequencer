@@ -1,9 +1,4 @@
-export type ResolutionMode =
-  | 'source'
-  | 'half'
-  | 'quarter'
-  | 'eighth'
-  | 'custom';
+export type ResolutionMode = 'source' | 'half' | 'quarter' | 'eighth' | 'custom';
 
 export type ResolutionSettings = {
   resolutionMode: ResolutionMode;

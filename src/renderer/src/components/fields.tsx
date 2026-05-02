@@ -353,9 +353,7 @@ export function BatchOutputPicker(props: {
       />
 
       {props.outputMode === 'for-each' ? (
-        <div className="px-1 text-xs leading-5 text-slate-400">
-          {props.forEachDetail}
-        </div>
+        <div className="px-1 text-xs leading-5 text-slate-400">{props.forEachDetail}</div>
       ) : (
         <OutputField
           value={props.outputRoot}

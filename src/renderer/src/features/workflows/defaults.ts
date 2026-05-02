@@ -32,6 +32,9 @@ export const initialSequenceToVideo: SequenceToVideoJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
+  upscaler: 'realesrgan-anime-video',
+  upscaleMode: 'off',
+  alphaMode: 'auto',
   format: 'mp4-h264',
 };
 
@@ -45,6 +48,9 @@ export const initialVideoToSequence: VideoToSequenceJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
+  upscaler: 'realesrgan-anime-video',
+  upscaleMode: 'off',
+  alphaMode: 'auto',
   format: 'png',
   prefix: 'frame',
   startNumber: 1,

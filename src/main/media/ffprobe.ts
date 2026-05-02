@@ -56,6 +56,8 @@ export async function probeMediaInfo(targetPath: string): Promise<{
   height?: number;
   frameRate?: number;
   durationSeconds?: number;
+  pixelFormat?: string;
+  hasAlpha?: boolean;
 }> {
   await ensureBinaryAvailable(ffprobeBinary, 'FFprobe');
 
@@ -68,7 +70,7 @@ export async function probeMediaInfo(targetPath: string): Promise<{
         '-select_streams',
         'v:0',
         '-show_entries',
-        'stream=width,height,avg_frame_rate,r_frame_rate',
+        'stream=width,height,avg_frame_rate,r_frame_rate,pix_fmt',
         '-show_entries',
         'format=duration',
         '-of',
@@ -106,6 +108,7 @@ export async function probeMediaInfo(targetPath: string): Promise<{
             height?: number;
             avg_frame_rate?: string;
             r_frame_rate?: string;
+            pix_fmt?: string;
           }>;
           format?: {
             duration?: string;
@@ -120,12 +123,22 @@ export async function probeMediaInfo(targetPath: string): Promise<{
           durationSeconds: payload.format?.duration
             ? Number.parseFloat(payload.format.duration)
             : undefined,
+          pixelFormat: stream?.pix_fmt,
+          hasAlpha: pixelFormatHasAlpha(stream?.pix_fmt),
         });
       } catch (error) {
         reject(error);
       }
     });
   });
+}
+
+function pixelFormatHasAlpha(pixelFormat: string | undefined): boolean {
+  if (!pixelFormat) {
+    return false;
+  }
+
+  return /rgba|bgra|argb|abgr|ya8|yuva|gbrap|pal8|graya/i.test(pixelFormat);
 }
 
 function parseFfprobeRate(value: string | undefined): number | undefined {

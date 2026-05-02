@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useEffectEvent, useState } from 'react';
-import { RATE_LIMITS } from '../../shared/formats';
+import { getDefaultUpscalerForPlatform, RATE_LIMITS } from '../../shared/formats';
 import { resolveResolution } from '../../shared/resolution';
 import type {
   BatchSequenceToVideoJob,
@@ -54,6 +54,7 @@ import type {
 } from './features/workflows/types';
 
 export default function App() {
+  const [runtimeInfo] = useState(() => window.mediaApi.getRuntimeInfo());
   const [activeMode, setActiveMode] = useState<WorkflowCategory>('Single');
   const [activeSingleTab, setActiveSingleTab] = useState<SingleTabId>('sequence-to-video');
   const [activeBatchTab, setActiveBatchTab] = useState<BatchTabId>('batch-video-to-sequence');
@@ -76,6 +77,52 @@ export default function App() {
     logs: [],
   });
   const [sequencePreviewRequestKey, setSequencePreviewRequestKey] = useState(0);
+  const fallbackUpscaler = getDefaultUpscalerForPlatform(runtimeInfo.platform);
+  const supportedUpscalerOptions = runtimeInfo.supportedUpscalers.map((value) => {
+    switch (value) {
+      case 'realesrgan-anime-video':
+        return {
+          value,
+          label: 'Stylized - Real-ESRGAN Anime Video v3',
+        };
+      case 'realcugan':
+        return {
+          value,
+          label: 'Stylized - Real-CUGAN',
+        };
+      case 'waifu2x':
+        return {
+          value,
+          label: 'Stylized - Waifu2x',
+        };
+      case 'realsr':
+        return {
+          value,
+          label: 'General photo - RealSR',
+        };
+      case 'swinir':
+        return {
+          value,
+          label: 'General clean - SwinIR',
+        };
+      case 'dat':
+        return {
+          value,
+          label: 'General detailed - DAT',
+        };
+      case 'anime4kcpp':
+        return {
+          value,
+          label: 'Stylized - Anime4KCPP',
+        };
+      case 'nearest':
+      default:
+        return {
+          value,
+          label: 'Pixel art - Nearest neighbor',
+        };
+    }
+  });
 
   const activeTab: TabId = activeMode === 'Single' ? activeSingleTab : activeBatchTab;
   const currentWorkflow = buildWorkflowViewModel(activeTab, {
@@ -192,6 +239,25 @@ export default function App() {
   useEffect(() => {
     setVideoToSequenceFpsTouched(false);
   }, [videoToSequence.videoPath]);
+
+  useEffect(() => {
+    setSequenceToVideo((current) =>
+      runtimeInfo.supportedUpscalers.includes(current.upscaler)
+        ? current
+        : {
+            ...current,
+            upscaler: fallbackUpscaler,
+          }
+    );
+    setVideoToSequence((current) =>
+      runtimeInfo.supportedUpscalers.includes(current.upscaler)
+        ? current
+        : {
+            ...current,
+            upscaler: fallbackUpscaler,
+          }
+    );
+  }, [fallbackUpscaler, runtimeInfo]);
 
   useEffect(() => {
     if (!videoPreview?.videoPath || !videoPreview.frameRate || videoToSequenceFpsTouched) {
@@ -466,7 +532,8 @@ export default function App() {
           sequenceToVideo.speed,
           sequenceToVideo.format,
           sequenceToVideo.quality,
-          resolveResolution(sequenceToVideo, sequencePreview ?? {}, { enforceEven: true })
+          resolveResolution(sequenceToVideo, sequencePreview ?? {}, { enforceEven: true }),
+          sequenceToVideo.upscaleMode
         )
       : null;
   const sourceBadgeLabel = getSourceBadgeLabel(activeTab, {
@@ -591,6 +658,7 @@ export default function App() {
                     setBatchVideoToSequence={setBatchVideoToSequence}
                     batchSequenceToVideo={batchSequenceToVideo}
                     setBatchSequenceToVideo={setBatchSequenceToVideo}
+                    upscalerOptions={supportedUpscalerOptions}
                     sequencePreview={sequencePreview}
                     videoPreview={videoPreview}
                     sequenceSizeEstimate={sequenceSizeEstimate}

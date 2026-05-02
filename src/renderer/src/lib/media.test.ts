@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyUpscaleResolution,
   buildSuggestedVideoName,
   estimateVideoSizeNote,
   formatDuration,
@@ -52,7 +53,9 @@ describe('renderer media helpers', () => {
       24,
       1,
       'mp4-h264',
-      100
+      100,
+      null,
+      'off'
     );
     const lowerQualityNote = estimateVideoSizeNote(
       {
@@ -64,12 +67,51 @@ describe('renderer media helpers', () => {
       24,
       1,
       'mp4-h264',
-      40
+      40,
+      null,
+      'off'
     );
 
     expect(highQualityNote).toContain('Estimated size: about');
     expect(highQualityNote).not.toBe(lowerQualityNote);
     expect(estimateVideoSizeNote(null, 24, 1, 'mp4-h264', 100)).toBeNull();
+  });
+
+  it('scales the estimated output when AI upscale is enabled', () => {
+    const baseNote = estimateVideoSizeNote(
+      {
+        firstFramePath: 'C:\\shots\\plate_0001.png',
+        frameCount: 240,
+        width: 640,
+        height: 360,
+      },
+      24,
+      1,
+      'mp4-h264',
+      100,
+      { width: 640, height: 360 },
+      'off'
+    );
+    const upscaledNote = estimateVideoSizeNote(
+      {
+        firstFramePath: 'C:\\shots\\plate_0001.png',
+        frameCount: 240,
+        width: 640,
+        height: 360,
+      },
+      24,
+      1,
+      'mp4-h264',
+      100,
+      { width: 640, height: 360 },
+      '4x'
+    );
+
+    expect(baseNote).not.toBe(upscaledNote);
+    expect(applyUpscaleResolution({ width: 640, height: 360 }, '2x')).toEqual({
+      width: 1280,
+      height: 720,
+    });
   });
 
   it('describes video quality differently per output format', () => {

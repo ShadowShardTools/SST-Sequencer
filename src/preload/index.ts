@@ -2,10 +2,15 @@ import electron from 'electron';
 import type { VideoFormat } from '../shared/formats';
 import type { JobEvent, JobRequest } from '../shared/jobs';
 import type { MediaApi } from '../shared/media-api';
+import { getSupportedUpscalerValues } from '../shared/formats';
 
 const { contextBridge, ipcRenderer, webUtils } = electron;
 
 const api: MediaApi = {
+  getRuntimeInfo: () => ({
+    platform: process.platform,
+    supportedUpscalers: getSupportedUpscalerValues(process.platform),
+  }),
   pickImageFiles: () => ipcRenderer.invoke('dialog:pick-image-files'),
   pickSequenceFolders: () => ipcRenderer.invoke('dialog:pick-sequence-folders'),
   pickVideoFiles: () => ipcRenderer.invoke('dialog:pick-video-files'),

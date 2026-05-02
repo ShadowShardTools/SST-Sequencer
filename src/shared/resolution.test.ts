@@ -15,12 +15,10 @@ describe('shared resolution helpers', () => {
       }
     );
 
-    expect(resolveResolution({ resolutionMode: 'eighth' }, { width: 1920, height: 1080 })).toEqual(
-      {
-        width: 240,
-        height: 135,
-      }
-    );
+    expect(resolveResolution({ resolutionMode: 'eighth' }, { width: 1920, height: 1080 })).toEqual({
+      width: 240,
+      height: 135,
+    });
 
     expect(
       resolveResolution(

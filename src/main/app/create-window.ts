@@ -16,9 +16,7 @@ function resolvePreloadPath(): string {
   const resolved = candidates.find((candidate) => existsSync(candidate));
 
   if (!resolved) {
-    throw new Error(
-      `Preload script was not found. Checked: ${candidates.join(', ')}`
-    );
+    throw new Error(`Preload script was not found. Checked: ${candidates.join(', ')}`);
   }
 
   return resolved;

@@ -1,11 +1,17 @@
 import {
   applyVideoFormatExtension,
+  getAlphaModeLabel,
   getVideoFormatExtension,
+  getUpscaleFactor,
+  getUpscalerLabel,
   isValidFps,
   isValidQuality,
   isValidSpeed,
   type SelectOption,
+  type AlphaMode,
   type ImageFormat,
+  type UpscaleMode,
+  type UpscalerType,
   type VideoFormat,
 } from '../../../shared/formats';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../shared/previews';
@@ -107,14 +113,16 @@ export function estimateVideoSizeNote(
   speed: number,
   format: VideoFormat,
   quality: number,
-  targetResolution?: ResolvedResolution | null
+  targetResolution?: ResolvedResolution | null,
+  upscaleMode: UpscaleMode = 'off'
 ): string | null {
   if (!preview || !isValidFps(fps) || !isValidSpeed(speed) || !isValidQuality(quality)) {
     return null;
   }
 
-  const width = targetResolution?.width ?? preview.width ?? 1920;
-  const height = targetResolution?.height ?? preview.height ?? 1080;
+  const scaledResolution = applyUpscaleResolution(targetResolution ?? null, upscaleMode);
+  const width = scaledResolution?.width ?? targetResolution?.width ?? preview.width ?? 1920;
+  const height = scaledResolution?.height ?? targetResolution?.height ?? preview.height ?? 1080;
   const seconds = preview.frameCount / fps / speed;
   const megapixels = (width * height) / 1_000_000;
   let mbps = 6;
@@ -218,6 +226,62 @@ export type ResolutionControlUi = {
   resolved: ResolvedResolution | null;
 };
 
+export function getUpscaleNote(upscaler: UpscalerType, mode: UpscaleMode): string {
+  if (mode === 'off') {
+    return 'Disabled. The export uses the selected base resolution directly.';
+  }
+
+  if (upscaler === 'nearest') {
+    return `Pixel-art safe. ${getUpscalerLabel(upscaler)} will scale from the selected base resolution by ${mode} and preserve hard edges and transparency.`;
+  }
+
+  if (upscaler === 'realcugan') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. This pass uses the no-denoise preset and preserves alpha when the output format supports transparency.`;
+  }
+
+  if (upscaler === 'waifu2x') {
+    const scaleNote =
+      mode === '3x'
+        ? 'Waifu2x does not natively support 3x, so this pass runs 4x first and downsamples to 3x.'
+        : 'This pass uses the cunet model with denoise disabled.';
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${scaleNote} Transparent sources keep a separately scaled alpha mask.`;
+  }
+
+  if (upscaler === 'realsr') {
+    const scaleNote =
+      mode === '4x'
+        ? 'This pass uses the DF2K_JPEG model for native 4x upscale.'
+        : 'RealSR only supports 4x natively, so this pass runs 4x first and downsamples to the selected factor.';
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${scaleNote} Transparent sources keep a separately scaled alpha mask.`;
+  }
+
+  if (upscaler === 'swinir') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. This pass uses the official classical DF2K model and requires Python with torch, timm, numpy, and opencv-python installed. Transparent sources keep a separately scaled alpha mask.`;
+  }
+
+  if (upscaler === 'dat') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. This pass uses the official ICCV 2023 classical SR model and requires Python with torch, timm, einops, numpy, and opencv-python installed. Transparent sources keep a separately scaled alpha mask.`;
+  }
+
+  if (upscaler === 'anime4kcpp') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. This pass uses the conservative v3 ARNet HDN model and picks the best available backend in this order: CUDA, OpenCL, then CPU. Transparent sources keep a separately scaled alpha mask.`;
+  }
+
+  return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode} and preserve alpha when the output format supports transparency.`;
+}
+
+export function getAlphaModeNote(alphaMode: AlphaMode, hasAlpha: boolean | undefined): string {
+  if (!hasAlpha) {
+    return 'No alpha was detected on the current source. This setting only affects transparent inputs.';
+  }
+
+  if (alphaMode === 'auto') {
+    return 'Auto-detect inspects the first source frame and chooses straight or premultiplied alpha before the upscale runs.';
+  }
+
+  return `${getAlphaModeLabel(alphaMode)} is forced for the alpha split before upscaling. Use this if auto-detect picks the wrong mode.`;
+}
+
 export function getImageAdjustmentUi(format: ImageFormat, quality: number): ImageAdjustmentUi {
   const clampedQuality = clampToRange(Math.round(quality), 1, 100);
 
@@ -296,7 +360,12 @@ export function getResolutionControlUi(
     },
     {
       value: 'half',
-      label: buildResolutionOptionLabel('1/2 of source', source, { resolutionMode: 'half' }, outputKind),
+      label: buildResolutionOptionLabel(
+        '1/2 of source',
+        source,
+        { resolutionMode: 'half' },
+        outputKind
+      ),
     },
     {
       value: 'quarter',
@@ -370,18 +439,33 @@ export function getAspectLockedDimensions(
   if (lockedEdge === 'width' && nextWidth && nextWidth > 0) {
     return {
       width: nextWidth,
-      height: Math.max(2, Math.round((nextWidth / source.width) * source.height / 2) * 2),
+      height: Math.max(2, Math.round(((nextWidth / source.width) * source.height) / 2) * 2),
     };
   }
 
   if (lockedEdge === 'height' && nextHeight && nextHeight > 0) {
     return {
-      width: Math.max(2, Math.round((nextHeight / source.height) * source.width / 2) * 2),
+      width: Math.max(2, Math.round(((nextHeight / source.height) * source.width) / 2) * 2),
       height: nextHeight,
     };
   }
 
   return null;
+}
+
+export function applyUpscaleResolution(
+  resolution: ResolvedResolution | null,
+  upscaleMode: UpscaleMode
+): ResolvedResolution | null {
+  if (!resolution) {
+    return null;
+  }
+
+  const factor = getUpscaleFactor(upscaleMode);
+  return {
+    width: resolution.width * factor,
+    height: resolution.height * factor,
+  };
 }
 
 export function formatBytes(bytes: number): string {

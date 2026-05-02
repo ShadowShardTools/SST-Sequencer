@@ -44,7 +44,14 @@ export function useSequenceSourcePreview(
 export function useSequenceMotionPreview(
   params: Pick<
     SequenceToVideoJob,
-    'sourceMode' | 'sequenceFolder' | 'imagePaths' | 'fps' | 'speed' | 'resolutionMode' | 'customWidth' | 'customHeight'
+    | 'sourceMode'
+    | 'sequenceFolder'
+    | 'imagePaths'
+    | 'fps'
+    | 'speed'
+    | 'resolutionMode'
+    | 'customWidth'
+    | 'customHeight'
   > & {
     enabled: boolean;
     requestKey: number;

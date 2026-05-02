@@ -5,6 +5,14 @@
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/setup-realesrgan.mjs && node scripts/setup-realcugan.mjs && node scripts/setup-waifu2x.mjs && node scripts/setup-realsr.mjs && node scripts/setup-swinir.mjs && node scripts/setup-dat.mjs && node scripts/setup-anime4kcpp.mjs",
+    "setup:realesrgan": "node scripts/setup-realesrgan.mjs",
+    "setup:realcugan": "node scripts/setup-realcugan.mjs",
+    "setup:waifu2x": "node scripts/setup-waifu2x.mjs",
+    "setup:realsr": "node scripts/setup-realsr.mjs",
+    "setup:swinir": "node scripts/setup-swinir.mjs",
+    "setup:dat": "node scripts/setup-dat.mjs",
+    "setup:anime4kcpp": "node scripts/setup-anime4kcpp.mjs",
     "dev": "node scripts/run-electron-vite.mjs dev",
     "build": "tsc --noEmit && node scripts/run-electron-vite.mjs build",
     "preview": "node scripts/run-electron-vite.mjs preview",
@@ -29,6 +37,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.0.4",
+    "7zip-bin": "^5.2.0",
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
@@ -54,6 +63,36 @@
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**",
       "**/node_modules/ffprobe-static/**"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/realesrgan",
+        "to": "realesrgan"
+      },
+      {
+        "from": "vendor/realcugan",
+        "to": "realcugan"
+      },
+      {
+        "from": "vendor/waifu2x",
+        "to": "waifu2x"
+      },
+      {
+        "from": "vendor/realsr",
+        "to": "realsr"
+      },
+      {
+        "from": "vendor/swinir",
+        "to": "swinir"
+      },
+      {
+        "from": "vendor/dat",
+        "to": "dat"
+      },
+      {
+        "from": "vendor/anime4kcpp",
+        "to": "anime4kcpp"
+      }
     ],
     "directories": {
       "output": "release"
