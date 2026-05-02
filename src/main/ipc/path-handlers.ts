@@ -1,8 +1,8 @@
 import { access, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import electron from 'electron';
+import type * as Electron from 'electron';
 
-const { ipcMain, shell } = electron;
+const { ipcMain, shell } = require('electron') as typeof Electron;
 
 export function registerPathHandlers(): void {
   ipcMain.handle('paths:reveal', async (_event, targetPath: string) => {

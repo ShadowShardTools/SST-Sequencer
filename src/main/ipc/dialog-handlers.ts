@@ -1,4 +1,4 @@
-import electron from 'electron';
+import type * as Electron from 'electron';
 import {
   applyVideoFormatExtension,
   getVideoFormatExtension,
@@ -6,7 +6,7 @@ import {
   type VideoFormat,
 } from '../../shared/formats';
 
-const { dialog, ipcMain } = electron;
+const { dialog, ipcMain } = require('electron') as typeof Electron;
 
 const IMAGE_FILTERS = [
   {

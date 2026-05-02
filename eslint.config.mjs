@@ -57,5 +57,17 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ['src/main/**/*.{ts,tsx}', 'src/preload/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    files: ['main.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
   prettier
 );

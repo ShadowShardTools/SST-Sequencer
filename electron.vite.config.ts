@@ -9,9 +9,28 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+          chunkFileNames: 'chunks/[name]-[hash].cjs',
+        },
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+          chunkFileNames: 'chunks/[name]-[hash].cjs',
+          inlineDynamicImports: true,
+        },
+      },
+    },
   },
   renderer: {
     root: resolve(currentDir, 'src/renderer'),

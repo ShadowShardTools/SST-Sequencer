@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import electron from 'electron';
+import type * as Electron from 'electron';
 import type { SequenceInputMode } from '../../shared/formats';
 import type { ResolutionMode } from '../../shared/resolution';
 import {
@@ -9,7 +9,7 @@ import {
   inspectVideoSource,
 } from '../media-service';
 
-const { ipcMain, nativeImage } = electron;
+const { ipcMain, nativeImage } = require('electron') as typeof Electron;
 
 export function registerPreviewHandlers(): void {
   ipcMain.handle(

@@ -1,10 +1,10 @@
-import electron from 'electron';
+import type * as Electron from 'electron';
 import type { VideoFormat } from '../shared/formats';
 import type { JobEvent, JobRequest } from '../shared/jobs';
 import type { MediaApi } from '../shared/media-api';
 import { getSupportedUpscalerValues } from '../shared/formats';
 
-const { contextBridge, ipcRenderer, webUtils } = electron;
+const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof Electron;
 
 const api: MediaApi = {
   getRuntimeInfo: () => ({
