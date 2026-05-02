@@ -58,6 +58,7 @@
     "productName": "SST Sequencer",
     "files": [
       "out/**/*",
+      "build/**/*",
       "package.json"
     ],
     "asarUnpack": [
@@ -94,6 +95,9 @@
         "to": "anime4kcpp"
       }
     ],
+    "win": {
+      "icon": "build/SST Sequencer.ico"
+    },
     "directories": {
       "output": "release"
     }

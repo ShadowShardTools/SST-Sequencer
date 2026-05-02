@@ -7,6 +7,16 @@ const { BrowserWindow } = electron;
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const mainDir = dirname(currentDir);
 
+function resolveAppIconPath(): string | undefined {
+  const iconFile = process.platform === 'win32' ? 'SST Sequencer.ico' : 'SST Sequencer.png';
+  const candidates = [
+    join(process.cwd(), 'build', iconFile),
+    join(process.resourcesPath, 'build', iconFile),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 function resolvePreloadPath(): string {
   const candidates = [
     join(mainDir, '../preload/index.mjs'),
@@ -24,6 +34,7 @@ function resolvePreloadPath(): string {
 
 export function createWindow(): void {
   const preloadPath = resolvePreloadPath();
+  const iconPath = resolveAppIconPath();
   const window = new BrowserWindow({
     width: 1440,
     height: 960,
@@ -32,6 +43,7 @@ export function createWindow(): void {
     autoHideMenuBar: true,
     backgroundColor: '#050816',
     title: 'SST Sequencer',
+    icon: iconPath,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
