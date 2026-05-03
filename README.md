@@ -1,6 +1,6 @@
 # SST Sequencer
 
-Desktop Electron app for building videos from image sequences and extracting image sequences from videos, with optional AI upscaling in the single-item workflows.
+Desktop Electron app for building videos from image sequences and extracting image sequences from videos, with optional AI upscaling.
 <img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/4f8f0af2-3f18-4d21-98ab-b1200c401b3f" />
 
 ## What It Does
