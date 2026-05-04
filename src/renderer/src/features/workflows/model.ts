@@ -431,6 +431,7 @@ function validateBatchVideoToSequence(
   const fpsReady = !job.overrideFps || isValidFps(job.fps);
   const speedReady = isValidSpeed(job.speed);
   const qualityReady = isValidQuality(job.quality);
+  const resolutionReady = isValidResolutionSettings(job);
   const upscalerReady = isValidUpscalerType(job.upscaler);
   const upscaleReady = isValidUpscaleMode(job.upscaleMode);
   const alphaReady = isValidAlphaMode(job.alphaMode);
@@ -440,6 +441,7 @@ function validateBatchVideoToSequence(
   const parametersReady =
     rateReady &&
     qualityReady &&
+    resolutionReady &&
     upscalerReady &&
     upscaleReady &&
     alphaReady &&
@@ -463,6 +465,9 @@ function validateBatchVideoToSequence(
   }
   if (!qualityReady) {
     blocking.push('Set image quality between 1% and 100%.');
+  }
+  if (!resolutionReady) {
+    blocking.push('Set custom resolution width and height between 2 and 8192.');
   }
   if (!upscalerReady) {
     blocking.push('Choose a valid upscaler.');
@@ -503,6 +508,7 @@ function validateBatchSequenceToVideo(
     isValidFps(job.fps) &&
     isValidSpeed(job.speed) &&
     isValidQuality(job.quality) &&
+    isValidResolutionSettings(job) &&
     isValidUpscalerType(job.upscaler) &&
     isValidUpscaleMode(job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode);
@@ -524,6 +530,9 @@ function validateBatchSequenceToVideo(
   }
   if (!isValidQuality(job.quality)) {
     blocking.push('Set quality between 1% and 100%.');
+  }
+  if (!isValidResolutionSettings(job)) {
+    blocking.push('Set custom resolution width and height between 2 and 8192.');
   }
   if (!isValidUpscalerType(job.upscaler)) {
     blocking.push('Choose a valid upscaler.');

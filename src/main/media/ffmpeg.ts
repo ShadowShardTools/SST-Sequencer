@@ -22,6 +22,10 @@ type ResizeOptions = {
 };
 
 export type ResolvedAlphaMode = Exclude<AlphaMode, 'auto'>;
+export type SequenceToVideoFilterSpec = {
+  argument: '-vf' | '-filter_complex';
+  value: string;
+};
 
 export async function createVideoFromImages(options: {
   imagePaths: string[];
@@ -50,30 +54,27 @@ export async function createVideoFromImages(options: {
   await writeFile(concatFilePath, concatLines.join('\n'), 'utf8');
 
   const args = ['-hide_banner', '-y', '-f', 'concat', '-safe', '0', '-i', concatFilePath];
+  const filterSpec = buildSequenceToVideoFilterSpec({
+    fps: options.fps,
+    speed: options.speed,
+    quality: options.quality,
+    format: options.format,
+    resize: options.resize,
+    extraVideoFilters: options.extraVideoFilters,
+  });
 
   if (options.format === 'gif-palette') {
-    const maxColors = mapQualityToGifColors(options.quality);
     args.push(
-      '-filter_complex',
-      `[0:v]setpts=${formatSetpts(options.speed)}*PTS,fps=${options.fps},split[frames][palette_source];` +
-        `[palette_source]palettegen=max_colors=${maxColors}:stats_mode=diff[palette];` +
-        '[frames][palette]paletteuse=dither=sierra2_4a',
+      filterSpec.argument,
+      filterSpec.value,
       '-loop',
       '0',
       options.outputPath
     );
   } else if (options.format === 'apng') {
-    const filterChain = [
-      `setpts=${formatSetpts(options.speed)}*PTS`,
-      `fps=${options.fps}`,
-      ...getResizeFilter(options.resize),
-      ...(options.extraVideoFilters ?? []),
-      'format=rgba',
-    ].join(',');
-
     args.push(
-      '-vf',
-      filterChain,
+      filterSpec.argument,
+      filterSpec.value,
       '-plays',
       '0',
       '-compression_level',
@@ -83,18 +84,9 @@ export async function createVideoFromImages(options: {
       options.outputPath
     );
   } else {
-    const filterChain = [
-      `setpts=${formatSetpts(options.speed)}*PTS`,
-      `fps=${options.fps}`,
-      ...getResizeFilter(options.resize),
-      'pad=ceil(iw/2)*2:ceil(ih/2)*2',
-      ...(options.extraVideoFilters ?? []),
-      ...getVideoPostFilters(options.format),
-    ].join(',');
-
     args.push(
-      '-vf',
-      filterChain,
+      filterSpec.argument,
+      filterSpec.value,
       ...getVideoCodecArgs(options.format, options.quality),
       options.outputPath
     );
@@ -110,6 +102,45 @@ export async function createVideoFromImages(options: {
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+export function buildSequenceToVideoFilterSpec(options: {
+  fps: number;
+  speed: number;
+  quality: number;
+  format: VideoFormat;
+  resize?: ResizeOptions;
+  extraVideoFilters?: string[];
+}): SequenceToVideoFilterSpec {
+  const baseFilters = [
+    `setpts=${formatSetpts(options.speed)}*PTS`,
+    `fps=${options.fps}`,
+    ...getResizeFilter(options.resize),
+    ...(options.extraVideoFilters ?? []),
+  ];
+
+  if (options.format === 'gif-palette') {
+    const maxColors = mapQualityToGifColors(options.quality);
+    return {
+      argument: '-filter_complex',
+      value:
+        `[0:v]${baseFilters.join(',')},split[frames][palette_source];` +
+        `[palette_source]palettegen=max_colors=${maxColors}:stats_mode=diff[palette];` +
+        '[frames][palette]paletteuse=dither=sierra2_4a',
+    };
+  }
+
+  if (options.format === 'apng') {
+    return {
+      argument: '-vf',
+      value: [...baseFilters, 'format=rgba'].join(','),
+    };
+  }
+
+  return {
+    argument: '-vf',
+    value: [...baseFilters, 'pad=ceil(iw/2)*2:ceil(ih/2)*2', ...getVideoPostFilters(options.format)].join(','),
+  };
 }
 
 export async function createImagesFromImageSequence(options: {

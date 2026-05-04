@@ -80,6 +80,18 @@ export function WorkflowParameterFields(props: {
     props.videoPreview,
     'images'
   );
+  const batchVideoResolutionUi = getResolutionControlUi(
+    props.batchVideoToSequence,
+    null,
+    'images',
+    'batch'
+  );
+  const batchSequenceResolutionUi = getResolutionControlUi(
+    props.batchSequenceToVideo,
+    null,
+    'video',
+    'batch'
+  );
 
   switch (props.activeTab) {
     case 'sequence-to-video':
@@ -635,6 +647,63 @@ export function WorkflowParameterFields(props: {
             />
           </InspectorFieldRow>
 
+          <InspectorFieldRow label="Resolution" note={batchVideoResolutionUi.note}>
+            <div className="space-y-2">
+              <SelectField
+                value={props.batchVideoToSequence.resolutionMode}
+                options={batchVideoResolutionUi.options}
+                onChange={(value) =>
+                  props.setBatchVideoToSequence((current) => ({
+                    ...current,
+                    resolutionMode: value,
+                    customWidth: value === 'custom' ? current.customWidth ?? 1920 : current.customWidth,
+                    customHeight:
+                      value === 'custom' ? current.customHeight ?? 1080 : current.customHeight,
+                  }))
+                }
+              />
+
+              {props.batchVideoToSequence.resolutionMode === 'custom' && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                      Width
+                    </div>
+                    <StepperField
+                      value={props.batchVideoToSequence.customWidth ?? 1920}
+                      min={RESOLUTION_LIMITS.dimension.min}
+                      max={RESOLUTION_LIMITS.dimension.max}
+                      step={RESOLUTION_LIMITS.dimension.step}
+                      onChange={(value) =>
+                        props.setBatchVideoToSequence((current) => ({
+                          ...current,
+                          customWidth: value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                      Height
+                    </div>
+                    <StepperField
+                      value={props.batchVideoToSequence.customHeight ?? 1080}
+                      min={RESOLUTION_LIMITS.dimension.min}
+                      max={RESOLUTION_LIMITS.dimension.max}
+                      step={RESOLUTION_LIMITS.dimension.step}
+                      onChange={(value) =>
+                        props.setBatchVideoToSequence((current) => ({
+                          ...current,
+                          customHeight: value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </InspectorFieldRow>
+
           <InspectorFieldRow label="Upscaler">
             <SelectField
               value={props.batchVideoToSequence.upscaler}
@@ -802,6 +871,63 @@ export function WorkflowParameterFields(props: {
                 }))
               }
             />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow label="Resolution" note={batchSequenceResolutionUi.note}>
+            <div className="space-y-2">
+              <SelectField
+                value={props.batchSequenceToVideo.resolutionMode}
+                options={batchSequenceResolutionUi.options}
+                onChange={(value) =>
+                  props.setBatchSequenceToVideo((current) => ({
+                    ...current,
+                    resolutionMode: value,
+                    customWidth: value === 'custom' ? current.customWidth ?? 1920 : current.customWidth,
+                    customHeight:
+                      value === 'custom' ? current.customHeight ?? 1080 : current.customHeight,
+                  }))
+                }
+              />
+
+              {props.batchSequenceToVideo.resolutionMode === 'custom' && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                      Width
+                    </div>
+                    <StepperField
+                      value={props.batchSequenceToVideo.customWidth ?? 1920}
+                      min={RESOLUTION_LIMITS.dimension.min}
+                      max={RESOLUTION_LIMITS.dimension.max}
+                      step={RESOLUTION_LIMITS.dimension.step}
+                      onChange={(value) =>
+                        props.setBatchSequenceToVideo((current) => ({
+                          ...current,
+                          customWidth: value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">
+                      Height
+                    </div>
+                    <StepperField
+                      value={props.batchSequenceToVideo.customHeight ?? 1080}
+                      min={RESOLUTION_LIMITS.dimension.min}
+                      max={RESOLUTION_LIMITS.dimension.max}
+                      step={RESOLUTION_LIMITS.dimension.step}
+                      onChange={(value) =>
+                        props.setBatchSequenceToVideo((current) => ({
+                          ...current,
+                          customHeight: value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </InspectorFieldRow>
 
           <InspectorFieldRow label="Upscaler">

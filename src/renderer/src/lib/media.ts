@@ -362,7 +362,8 @@ export function getImageAdjustmentUi(format: ImageFormat, quality: number): Imag
 export function getResolutionControlUi(
   settings: ResolutionSettings,
   source: ResolutionDimensions | null,
-  outputKind: 'video' | 'images'
+  outputKind: 'video' | 'images',
+  context: 'single' | 'batch' = 'single'
 ): ResolutionControlUi {
   const resolved = resolveResolution(settings, source ?? {}, {
     enforceEven: outputKind === 'video',
@@ -412,9 +413,13 @@ export function getResolutionControlUi(
       options,
       resolved: null,
       note:
-        settings.resolutionMode === 'source'
-          ? 'Uses the source resolution once a source is loaded.'
-          : 'Load a source to preview the output resolution.',
+        context === 'batch'
+          ? settings.resolutionMode === 'source'
+            ? 'Each batch item keeps its source resolution.'
+            : 'Each batch item is resized relative to its own source resolution.'
+          : settings.resolutionMode === 'source'
+            ? 'Uses the source resolution once a source is loaded.'
+            : 'Load a source to preview the output resolution.',
     };
   }
 

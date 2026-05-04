@@ -61,6 +61,9 @@ export interface BatchVideoToSequenceJob {
   fps: number;
   speed: number;
   quality: number;
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
   upscaler: UpscalerType;
   upscaleMode: UpscaleMode;
   epxAntialias: boolean;
@@ -81,6 +84,9 @@ export interface BatchSequenceToVideoJob {
   fps: number;
   speed: number;
   quality: number;
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
   upscaler: UpscalerType;
   upscaleMode: UpscaleMode;
   epxAntialias: boolean;

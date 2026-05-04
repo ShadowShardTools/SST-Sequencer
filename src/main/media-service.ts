@@ -399,6 +399,7 @@ async function runBatchVideoToSequenceJob(
 ): Promise<JobSummary> {
   validateSpeedSetting(request.speed);
   validateQualitySetting(request.quality);
+  validateResolutionSetting(request);
   validateUpscalerType(request.upscaler);
   validateUpscaleMode(request.upscaleMode);
   validateAlphaMode(request.alphaMode);
@@ -429,6 +430,7 @@ async function runBatchVideoToSequenceJob(
       const extractionFps = request.overrideFps
         ? request.fps
         : await resolveBatchVideoSourceFps(videoPath, request.fps, emitter);
+      const resize = await resolveVideoResizeTarget(request, videoPath);
       const upscaleFactor = getUpscaleFactor(request.upscaleMode);
       const sourceMediaInfo = await probeMediaInfo(videoPath);
       const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
@@ -440,7 +442,7 @@ async function runBatchVideoToSequenceJob(
         if (upscaleFactor > 1) {
           if (request.upscaler === 'nearest') {
             const nearestResize = resolveUpscaledResize(
-              undefined,
+              resize,
               sourceMediaInfo.width,
               sourceMediaInfo.height,
               upscaleFactor
@@ -481,6 +483,7 @@ async function runBatchVideoToSequenceJob(
               fps: extractionFps,
               speed: request.speed,
               quality: 100,
+              resize,
               format: 'png',
               prefix: 'frame',
               startNumber: 1,
@@ -529,6 +532,7 @@ async function runBatchVideoToSequenceJob(
             fps: extractionFps,
             speed: request.speed,
             quality: request.quality,
+            resize,
             format: request.format,
             prefix: request.prefix,
             startNumber: request.startNumber,
@@ -579,6 +583,7 @@ async function runBatchSequenceToVideoJob(
 ): Promise<JobSummary> {
   validateRateSettings(request.fps, request.speed);
   validateQualitySetting(request.quality);
+  validateResolutionSetting(request);
   validateUpscalerType(request.upscaler);
   validateUpscaleMode(request.upscaleMode);
   validateAlphaMode(request.alphaMode);
@@ -608,6 +613,9 @@ async function runBatchSequenceToVideoJob(
       }
 
       const outputPath = await resolveBatchVideoOutput(request, sequenceFolder);
+      const resize = await resolveSequenceResizeTarget(request, imagePaths, {
+        enforceEven: true,
+      });
       const upscaleFactor = getUpscaleFactor(request.upscaleMode);
       const sourceMediaInfo = await probeMediaInfo(imagePaths[0]);
       const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
@@ -618,7 +626,7 @@ async function runBatchSequenceToVideoJob(
             height: number;
             flags?: 'lanczos' | 'neighbor' | 'bilinear';
           }
-        | undefined;
+        | undefined = resize;
       let tempBaseDir = '';
       let tempUpscaledDir = '';
       emitter.log(`Starting ${label} (${currentIndex}/${sequenceFolders.length}).`);
@@ -627,7 +635,7 @@ async function runBatchSequenceToVideoJob(
         if (upscaleFactor > 1) {
           if (request.upscaler === 'nearest') {
             const nearestResize = resolveUpscaledResize(
-              undefined,
+              resize,
               sourceMediaInfo.width,
               sourceMediaInfo.height,
               upscaleFactor
@@ -647,6 +655,7 @@ async function runBatchSequenceToVideoJob(
               quality: 100,
               prefix: 'frame',
               startNumber: 1,
+              resize,
               emitter,
             });
 
