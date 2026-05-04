@@ -21,6 +21,8 @@ export type UpscalerType =
   | 'swinir'
   | 'dat'
   | 'anime4kcpp'
+  | 'xbr-js'
+  | 'pixel-scale-epx'
   | 'nearest';
 export type AlphaMode = 'auto' | 'straight' | 'premultiplied';
 export type SequenceInputMode = 'folder' | 'images';
@@ -115,6 +117,14 @@ export const UPSCALER_OPTIONS: ReadonlyArray<SelectOption<UpscalerType>> = [
   {
     value: 'anime4kcpp',
     label: 'Anime / stylized - Anime4KCPP',
+  },
+  {
+    value: 'xbr-js',
+    label: 'Pixel art only - xBR.js',
+  },
+  {
+    value: 'pixel-scale-epx',
+    label: 'Pixel art only - EPX / Scale2x',
   },
   {
     value: 'nearest',
@@ -232,6 +242,8 @@ export function isValidUpscalerType(value: string): value is UpscalerType {
     value === 'swinir' ||
     value === 'dat' ||
     value === 'anime4kcpp' ||
+    value === 'xbr-js' ||
+    value === 'pixel-scale-epx' ||
     value === 'nearest'
   );
 }
@@ -263,6 +275,8 @@ export function isUpscalerSupportedOnPlatform(
     case 'realsr':
     case 'swinir':
     case 'dat':
+    case 'xbr-js':
+    case 'pixel-scale-epx':
     case 'realesrgan-anime-video':
     case 'realcugan':
     case 'nearest':
@@ -299,6 +313,10 @@ export function getUpscalerLabel(value: UpscalerType): string {
       return 'SwinIR';
     case 'dat':
       return 'DAT';
+    case 'xbr-js':
+      return 'xBR.js';
+    case 'pixel-scale-epx':
+      return 'EPX / Scale2x';
     case 'realcugan':
       return 'Real-CUGAN';
     case 'realesrgan-anime-video':

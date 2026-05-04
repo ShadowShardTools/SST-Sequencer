@@ -27,11 +27,13 @@ import {
 import { probeMediaInfo } from './media/ffprobe';
 import { upscaleImageDirectory as upscaleWithAnime4kcpp } from './media/anime4kcpp';
 import { upscaleImageDirectory as upscaleWithDat } from './media/dat';
+import { upscaleImageDirectory as upscaleWithPixelScaleEpx } from './media/pixel-scale-epx';
 import { upscaleImageDirectory as upscaleWithRealcugan } from './media/realcugan';
 import { upscaleImageDirectory as upscaleWithRealEsrgan } from './media/realesrgan';
 import { upscaleImageDirectory as upscaleWithRealSr } from './media/realsr';
 import { upscaleImageDirectory as upscaleWithSwinIr } from './media/swinir';
 import { upscaleImageDirectory as upscaleWithWaifu2x } from './media/waifu2x';
+import { upscaleImageDirectory as upscaleWithXbrJs } from './media/xbr-js';
 import { resolveSequenceResizeTarget, resolveVideoResizeTarget } from './media/resize';
 import {
   dedupeAndSort,
@@ -198,6 +200,7 @@ async function runSequenceToVideoJob(
           inputDir: tempBaseDir,
           outputDir: tempUpscaledDir,
           scale: upscaleFactor,
+          epxAntialias: request.epxAntialias,
           preserveAlpha,
           alphaMode: request.alphaMode,
           emitter,
@@ -332,6 +335,7 @@ async function runVideoToSequenceJob(
           inputDir: tempBaseDir,
           outputDir: tempUpscaledDir,
           scale: upscaleFactor,
+          epxAntialias: request.epxAntialias,
           preserveAlpha,
           alphaMode: request.alphaMode,
           emitter,
@@ -395,6 +399,9 @@ async function runBatchVideoToSequenceJob(
 ): Promise<JobSummary> {
   validateSpeedSetting(request.speed);
   validateQualitySetting(request.quality);
+  validateUpscalerType(request.upscaler);
+  validateUpscaleMode(request.upscaleMode);
+  validateAlphaMode(request.alphaMode);
   if (request.overrideFps) {
     validateFpsSetting(request.fps);
   }
@@ -422,29 +429,130 @@ async function runBatchVideoToSequenceJob(
       const extractionFps = request.overrideFps
         ? request.fps
         : await resolveBatchVideoSourceFps(videoPath, request.fps, emitter);
+      const upscaleFactor = getUpscaleFactor(request.upscaleMode);
+      const sourceMediaInfo = await probeMediaInfo(videoPath);
+      const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
+      let tempBaseDir = '';
+      let tempUpscaledDir = '';
       emitter.log(`Starting ${label} (${currentIndex}/${videoPaths.length}).`);
 
-      await createImagesFromVideo({
-        videoPath,
-        outputDir,
-        fps: extractionFps,
-        speed: request.speed,
-        quality: request.quality,
-        format: request.format,
-        prefix: request.prefix,
-        startNumber: request.startNumber,
-        emitter,
-        onProgress: (percent) =>
-          emitter.progress(
-            scaleBatchPercent(currentIndex, videoPaths.length, percent),
-            `Extracting ${label}`,
-            {
-              currentItem: label,
-              overallIndex: currentIndex,
-              overallTotal: videoPaths.length,
-            }
-          ),
-      });
+      try {
+        if (upscaleFactor > 1) {
+          if (request.upscaler === 'nearest') {
+            const nearestResize = resolveUpscaledResize(
+              undefined,
+              sourceMediaInfo.width,
+              sourceMediaInfo.height,
+              upscaleFactor
+            );
+
+            await createImagesFromVideo({
+              videoPath,
+              outputDir,
+              fps: extractionFps,
+              speed: request.speed,
+              quality: request.quality,
+              resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
+              format: request.format,
+              prefix: request.prefix,
+              startNumber: request.startNumber,
+              emitter,
+              onProgress: (percent) =>
+                emitter.progress(
+                  scaleBatchPercent(currentIndex, videoPaths.length, percent),
+                  `Extracting ${label}`,
+                  {
+                    currentItem: label,
+                    overallIndex: currentIndex,
+                    overallTotal: videoPaths.length,
+                  }
+                ),
+            });
+          } else {
+            tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-base-'));
+            tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
+
+            emitter.log(
+              `Extracting base frames from ${label} for ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale.`
+            );
+            await createImagesFromVideo({
+              videoPath,
+              outputDir: tempBaseDir,
+              fps: extractionFps,
+              speed: request.speed,
+              quality: 100,
+              format: 'png',
+              prefix: 'frame',
+              startNumber: 1,
+              emitter,
+              onProgress: (percent) =>
+                emitter.progress(
+                  scaleBatchPercent(currentIndex, videoPaths.length, percent * 0.45),
+                  `Extracting ${label}`,
+                  {
+                    currentItem: label,
+                    overallIndex: currentIndex,
+                    overallTotal: videoPaths.length,
+                  }
+                ),
+            });
+
+            emitter.log(
+              `Running ${getUpscalerLabel(request.upscaler)} ${request.upscaleMode} on extracted frames from ${label}.`
+            );
+            await upscaleDirectoryUsingSelectedUpscaler({
+              upscaler: request.upscaler,
+              inputDir: tempBaseDir,
+              outputDir: tempUpscaledDir,
+              scale: upscaleFactor,
+              epxAntialias: request.epxAntialias,
+              preserveAlpha,
+              alphaMode: request.alphaMode,
+              emitter,
+            });
+
+            const upscaledImagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+            await createImagesFromImageSequence({
+              imagePaths: upscaledImagePaths,
+              outputDir,
+              format: request.format,
+              quality: request.quality,
+              prefix: request.prefix,
+              startNumber: request.startNumber,
+              emitter,
+            });
+          }
+        } else {
+          await createImagesFromVideo({
+            videoPath,
+            outputDir,
+            fps: extractionFps,
+            speed: request.speed,
+            quality: request.quality,
+            format: request.format,
+            prefix: request.prefix,
+            startNumber: request.startNumber,
+            emitter,
+            onProgress: (percent) =>
+              emitter.progress(
+                scaleBatchPercent(currentIndex, videoPaths.length, percent),
+                `Extracting ${label}`,
+                {
+                  currentItem: label,
+                  overallIndex: currentIndex,
+                  overallTotal: videoPaths.length,
+                }
+              ),
+          });
+        }
+      } finally {
+        if (tempBaseDir) {
+          await rm(tempBaseDir, { recursive: true, force: true });
+        }
+        if (tempUpscaledDir) {
+          await rm(tempUpscaledDir, { recursive: true, force: true });
+        }
+      }
 
       outputs.push(outputDir);
     } catch (error) {
@@ -471,6 +579,9 @@ async function runBatchSequenceToVideoJob(
 ): Promise<JobSummary> {
   validateRateSettings(request.fps, request.speed);
   validateQualitySetting(request.quality);
+  validateUpscalerType(request.upscaler);
+  validateUpscaleMode(request.upscaleMode);
+  validateAlphaMode(request.alphaMode);
 
   const sequenceFolders =
     request.sourceMode === 'folders'
@@ -497,27 +608,94 @@ async function runBatchSequenceToVideoJob(
       }
 
       const outputPath = await resolveBatchVideoOutput(request, sequenceFolder);
+      const upscaleFactor = getUpscaleFactor(request.upscaleMode);
+      const sourceMediaInfo = await probeMediaInfo(imagePaths[0]);
+      const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
+      let workingImagePaths = imagePaths;
+      let workingResize:
+        | {
+            width: number;
+            height: number;
+            flags?: 'lanczos' | 'neighbor' | 'bilinear';
+          }
+        | undefined;
+      let tempBaseDir = '';
+      let tempUpscaledDir = '';
       emitter.log(`Starting ${label} (${currentIndex}/${sequenceFolders.length}).`);
 
-      await createVideoFromImages({
-        imagePaths,
-        outputPath,
-        fps: request.fps,
-        speed: request.speed,
-        quality: request.quality,
-        format: request.format,
-        emitter,
-        onProgress: (percent) =>
-          emitter.progress(
-            scaleBatchPercent(currentIndex, sequenceFolders.length, percent),
-            `Encoding ${label}`,
-            {
-              currentItem: label,
-              overallIndex: currentIndex,
-              overallTotal: sequenceFolders.length,
-            }
-          ),
-      });
+      try {
+        if (upscaleFactor > 1) {
+          if (request.upscaler === 'nearest') {
+            const nearestResize = resolveUpscaledResize(
+              undefined,
+              sourceMediaInfo.width,
+              sourceMediaInfo.height,
+              upscaleFactor
+            );
+            workingResize = nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize;
+          } else {
+            tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-base-'));
+            tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
+
+            emitter.log(
+              `Preparing frames from ${label} for ${request.upscaleMode} ${getUpscalerLabel(request.upscaler)} upscale.`
+            );
+            await createImagesFromImageSequence({
+              imagePaths,
+              outputDir: tempBaseDir,
+              format: 'png',
+              quality: 100,
+              prefix: 'frame',
+              startNumber: 1,
+              emitter,
+            });
+
+            emitter.log(
+              `Running ${getUpscalerLabel(request.upscaler)} ${request.upscaleMode} on ${label}.`
+            );
+            await upscaleDirectoryUsingSelectedUpscaler({
+              upscaler: request.upscaler,
+              inputDir: tempBaseDir,
+              outputDir: tempUpscaledDir,
+              scale: upscaleFactor,
+              epxAntialias: request.epxAntialias,
+              preserveAlpha,
+              alphaMode: request.alphaMode,
+              emitter,
+            });
+
+            workingImagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+          }
+        }
+
+        await createVideoFromImages({
+          imagePaths: workingImagePaths,
+          outputPath,
+          fps: request.fps,
+          speed: request.speed,
+          quality: request.quality,
+          format: request.format,
+          resize: workingResize,
+          emitter,
+          onProgress: (percent) =>
+            emitter.progress(
+              scaleBatchPercent(currentIndex, sequenceFolders.length, percent),
+              `Encoding ${label}`,
+              {
+                currentItem: label,
+                overallIndex: currentIndex,
+                overallTotal: sequenceFolders.length,
+              }
+            ),
+        });
+      } finally {
+        if (tempBaseDir) {
+          await rm(tempBaseDir, { recursive: true, force: true });
+        }
+        if (tempUpscaledDir) {
+          await rm(tempUpscaledDir, { recursive: true, force: true });
+        }
+      }
 
       outputs.push(outputPath);
     } catch (error) {
@@ -658,6 +836,7 @@ async function upscaleDirectoryUsingSelectedUpscaler(options: {
   inputDir: string;
   outputDir: string;
   scale: number;
+  epxAntialias?: boolean;
   preserveAlpha: boolean;
   alphaMode: AlphaMode;
   emitter: JobEmitter;
@@ -665,6 +844,12 @@ async function upscaleDirectoryUsingSelectedUpscaler(options: {
   switch (options.upscaler) {
     case 'anime4kcpp':
       await upscaleWithAnime4kcpp(options);
+      return;
+    case 'xbr-js':
+      await upscaleWithXbrJs(options);
+      return;
+    case 'pixel-scale-epx':
+      await upscaleWithPixelScaleEpx(options);
       return;
     case 'realcugan':
       await upscaleWithRealcugan(options);
@@ -685,7 +870,7 @@ async function upscaleDirectoryUsingSelectedUpscaler(options: {
       await upscaleWithRealEsrgan(options);
       return;
     default:
-      throw new Error(`Unsupported AI upscaler: ${getUpscalerLabel(options.upscaler)}.`);
+      throw new Error(`Unsupported upscaler: ${getUpscalerLabel(options.upscaler)}.`);
   }
 }
 

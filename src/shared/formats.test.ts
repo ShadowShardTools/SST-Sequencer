@@ -37,6 +37,8 @@ describe('shared format metadata', () => {
       'swinir',
       'dat',
       'anime4kcpp',
+      'xbr-js',
+      'pixel-scale-epx',
       'nearest',
     ]);
     expect(getUpscaleFactor('off')).toBe(1);
@@ -52,6 +54,8 @@ describe('shared format metadata', () => {
       'swinir',
       'dat',
       'anime4kcpp',
+      'xbr-js',
+      'pixel-scale-epx',
       'nearest',
     ]);
     expect(getSupportedUpscalerOptions('darwin').map((option) => option.value)).toEqual([
@@ -61,6 +65,8 @@ describe('shared format metadata', () => {
       'realsr',
       'swinir',
       'dat',
+      'xbr-js',
+      'pixel-scale-epx',
       'nearest',
     ]);
     expect(getDefaultUpscalerForPlatform('linux')).toBe('realesrgan-anime-video');

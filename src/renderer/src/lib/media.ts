@@ -235,6 +235,14 @@ export function getUpscaleNote(upscaler: UpscalerType, mode: UpscaleMode): strin
     return `Pixel-art safe. ${getUpscalerLabel(upscaler)} will scale from the selected base resolution by ${mode} and preserve hard edges and transparency.`;
   }
 
+  if (upscaler === 'xbr-js') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. Use it for sprites and hard-edged pixel art only. It smooths stair-step diagonals, but it is not meant for painted, antialiased, or photo-like images.`;
+  }
+
+  if (upscaler === 'pixel-scale-epx') {
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. Use it for sprites and hard-edged pixel art only. It keeps pixel clusters crisp, but it is not meant for painted, antialiased, or photo-like images.`;
+  }
+
   if (upscaler === 'realcugan') {
     return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. This pass uses the no-denoise preset and preserves alpha when the output format supports transparency.`;
   }
@@ -271,6 +279,14 @@ export function getUpscaleNote(upscaler: UpscalerType, mode: UpscaleMode): strin
 }
 
 export function getAlphaModeNote(alphaMode: AlphaMode, hasAlpha: boolean | undefined): string {
+  if (hasAlpha === undefined) {
+    if (alphaMode === 'auto') {
+      return 'Auto-detect inspects the first source frame in each batch item and chooses straight or premultiplied alpha before the upscale runs.';
+    }
+
+    return `${getAlphaModeLabel(alphaMode)} is forced for transparent batch items before upscaling. Use this when you know the source alpha is consistent across the batch.`;
+  }
+
   if (!hasAlpha) {
     return 'No alpha was detected on the current source. This setting only affects transparent inputs.';
   }

@@ -431,10 +431,20 @@ function validateBatchVideoToSequence(
   const fpsReady = !job.overrideFps || isValidFps(job.fps);
   const speedReady = isValidSpeed(job.speed);
   const qualityReady = isValidQuality(job.quality);
+  const upscalerReady = isValidUpscalerType(job.upscaler);
+  const upscaleReady = isValidUpscaleMode(job.upscaleMode);
+  const alphaReady = isValidAlphaMode(job.alphaMode);
   const rateReady = fpsReady && speedReady;
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
-  const parametersReady = rateReady && qualityReady && prefixReady && numberingReady;
+  const parametersReady =
+    rateReady &&
+    qualityReady &&
+    upscalerReady &&
+    upscaleReady &&
+    alphaReady &&
+    prefixReady &&
+    numberingReady;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -453,6 +463,15 @@ function validateBatchVideoToSequence(
   }
   if (!qualityReady) {
     blocking.push('Set image quality between 1% and 100%.');
+  }
+  if (!upscalerReady) {
+    blocking.push('Choose a valid upscaler.');
+  }
+  if (!upscaleReady) {
+    blocking.push('Set a valid upscale amount.');
+  }
+  if (!alphaReady) {
+    blocking.push('Choose a valid alpha mode.');
   }
   if (!prefixReady) {
     blocking.push('Enter a frame prefix.');
@@ -481,7 +500,12 @@ function validateBatchSequenceToVideo(
       ? (job.sequenceFolders?.length ?? 0) > 0
       : Boolean(job.scanRoot?.trim());
   const parametersReady =
-    isValidFps(job.fps) && isValidSpeed(job.speed) && isValidQuality(job.quality);
+    isValidFps(job.fps) &&
+    isValidSpeed(job.speed) &&
+    isValidQuality(job.quality) &&
+    isValidUpscalerType(job.upscaler) &&
+    isValidUpscaleMode(job.upscaleMode) &&
+    isValidAlphaMode(job.alphaMode);
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -500,6 +524,15 @@ function validateBatchSequenceToVideo(
   }
   if (!isValidQuality(job.quality)) {
     blocking.push('Set quality between 1% and 100%.');
+  }
+  if (!isValidUpscalerType(job.upscaler)) {
+    blocking.push('Choose a valid upscaler.');
+  }
+  if (!isValidUpscaleMode(job.upscaleMode)) {
+    blocking.push('Set a valid upscale amount.');
+  }
+  if (!isValidAlphaMode(job.alphaMode)) {
+    blocking.push('Choose a valid alpha mode.');
   }
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');

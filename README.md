@@ -10,7 +10,7 @@ Desktop Electron app for building videos from image sequences and extracting ima
 - Batch-convert many video files into image sequences
 - Batch-convert many sequence folders into videos
 - Resize single workflows before export
-- Upscale single workflows with native or Python-backed upscalers
+- Upscale single and batch workflows with native, JS, or Python-backed upscalers
 - Preserve alpha when the selected format and pipeline support it
 
 ## Supported Formats
@@ -46,9 +46,11 @@ Desktop Electron app for building videos from image sequences and extracting ima
 
 ## Upscalers
 
-Single `Sequence to video` and `Video to sequence` support:
+Single and batch workflows support:
 
 - `Nearest neighbor`
+- `xBR.js`
+- `pixel-scale-epx`
 - `Real-ESRGAN Anime Video v3`
 - `Real-CUGAN`
 - `Waifu2x`
@@ -65,6 +67,9 @@ Single `Sequence to video` and `Video to sequence` support:
   - `Waifu2x`
   - `RealSR`
   - `Anime4KCPP`
+- JS pixel-art backends:
+  - `xBR.js`
+  - `pixel-scale-epx`
 - Optional Python backends:
   - `SwinIR`
   - `DAT`
@@ -98,7 +103,7 @@ FFmpeg and FFprobe are bundled through `ffmpeg-static` and `ffprobe-static`.
 
 ### Optional Python backends
 
-`SwinIR` and `DAT` require Python 3 plus extra packages at runtime.
+`SwinIR` and `DAT` require Python `3.11` plus extra packages at runtime. Use `Python 3.11 x64`.
 
 - `SwinIR`
   - `torch`
@@ -115,11 +120,11 @@ FFmpeg and FFprobe are bundled through `ffmpeg-static` and `ffprobe-static`.
 Example installs:
 
 ```powershell
-py -3 -m pip install torch timm numpy opencv-python
-py -3 -m pip install torch timm einops numpy opencv-python
+py -3.11 -m pip install torch timm numpy opencv-python
+py -3.11 -m pip install torch timm einops numpy opencv-python
 ```
 
-If `py -3` is not available, use `python` or `python3` instead.
+If `py -3.11` is not available, use a Python 3.11 interpreter through `python` or `python3` instead.
 
 ## Scripts
 
@@ -145,8 +150,8 @@ If `py -3` is not available, use `python` or `python3` instead.
 ## Notes
 
 - `Anime4KCPP` is currently only bundled on Windows.
-- `SwinIR` and `DAT` are Python backends, so packaging the desktop app does not embed a Python runtime.
-- Batch workflows currently focus on format conversion, timing, quality, and output routing. The AI upscaler path is for single workflows.
+- `SwinIR` and `DAT` are Python 3.11 backends, so packaging the desktop app does not embed a Python runtime.
+- `xBR.js` and `pixel-scale-epx` are pixel-art-focused upscalers. They are not intended for painted, antialiased, or photo-like images.
 
 ## Project Layout
 

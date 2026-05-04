@@ -115,6 +115,16 @@ export default function App() {
           value,
           label: 'Stylized - Anime4KCPP',
         };
+      case 'xbr-js':
+        return {
+          value,
+          label: 'Pixel art only - xBR.js',
+        };
+      case 'pixel-scale-epx':
+        return {
+          value,
+          label: 'Pixel art only - EPX / Scale2x',
+        };
       case 'nearest':
       default:
         return {

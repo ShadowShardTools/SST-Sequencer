@@ -635,6 +635,54 @@ export function WorkflowParameterFields(props: {
             />
           </InspectorFieldRow>
 
+          <InspectorFieldRow label="Upscaler">
+            <SelectField
+              value={props.batchVideoToSequence.upscaler}
+              options={props.upscalerOptions}
+              onChange={(value) =>
+                props.setBatchVideoToSequence((current) => ({
+                  ...current,
+                  upscaler: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Upscale"
+            note={getUpscaleNote(
+              props.batchVideoToSequence.upscaler,
+              props.batchVideoToSequence.upscaleMode
+            )}
+          >
+            <SelectField
+              value={props.batchVideoToSequence.upscaleMode}
+              options={UPSCALE_OPTIONS}
+              onChange={(value) =>
+                props.setBatchVideoToSequence((current) => ({
+                  ...current,
+                  upscaleMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Alpha mode"
+            note={getAlphaModeNote(props.batchVideoToSequence.alphaMode, undefined)}
+          >
+            <SelectField
+              value={props.batchVideoToSequence.alphaMode}
+              options={ALPHA_MODE_OPTIONS}
+              onChange={(value) =>
+                props.setBatchVideoToSequence((current) => ({
+                  ...current,
+                  alphaMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
           <InspectorFieldRow label={batchImageAdjustment.label} note={batchImageAdjustment.note}>
             {batchImageAdjustment.adjustable ? (
               <SliderField
@@ -751,6 +799,54 @@ export function WorkflowParameterFields(props: {
                 props.setBatchSequenceToVideo((current) => ({
                   ...current,
                   format: value as VideoFormat,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow label="Upscaler">
+            <SelectField
+              value={props.batchSequenceToVideo.upscaler}
+              options={props.upscalerOptions}
+              onChange={(value) =>
+                props.setBatchSequenceToVideo((current) => ({
+                  ...current,
+                  upscaler: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Upscale"
+            note={getUpscaleNote(
+              props.batchSequenceToVideo.upscaler,
+              props.batchSequenceToVideo.upscaleMode
+            )}
+          >
+            <SelectField
+              value={props.batchSequenceToVideo.upscaleMode}
+              options={UPSCALE_OPTIONS}
+              onChange={(value) =>
+                props.setBatchSequenceToVideo((current) => ({
+                  ...current,
+                  upscaleMode: value,
+                }))
+              }
+            />
+          </InspectorFieldRow>
+
+          <InspectorFieldRow
+            label="Alpha mode"
+            note={getAlphaModeNote(props.batchSequenceToVideo.alphaMode, undefined)}
+          >
+            <SelectField
+              value={props.batchSequenceToVideo.alphaMode}
+              options={ALPHA_MODE_OPTIONS}
+              onChange={(value) =>
+                props.setBatchSequenceToVideo((current) => ({
+                  ...current,
+                  alphaMode: value,
                 }))
               }
             />

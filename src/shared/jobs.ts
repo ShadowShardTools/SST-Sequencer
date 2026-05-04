@@ -25,6 +25,7 @@ export interface SequenceToVideoJob {
   customHeight?: number;
   upscaler: UpscalerType;
   upscaleMode: UpscaleMode;
+  epxAntialias: boolean;
   alphaMode: AlphaMode;
   format: VideoFormat;
 }
@@ -41,6 +42,7 @@ export interface VideoToSequenceJob {
   customHeight?: number;
   upscaler: UpscalerType;
   upscaleMode: UpscaleMode;
+  epxAntialias: boolean;
   alphaMode: AlphaMode;
   format: ImageFormat;
   prefix: string;
@@ -59,6 +61,10 @@ export interface BatchVideoToSequenceJob {
   fps: number;
   speed: number;
   quality: number;
+  upscaler: UpscalerType;
+  upscaleMode: UpscaleMode;
+  epxAntialias: boolean;
+  alphaMode: AlphaMode;
   format: ImageFormat;
   prefix: string;
   startNumber: number;
@@ -75,6 +81,10 @@ export interface BatchSequenceToVideoJob {
   fps: number;
   speed: number;
   quality: number;
+  upscaler: UpscalerType;
+  upscaleMode: UpscaleMode;
+  epxAntialias: boolean;
+  alphaMode: AlphaMode;
   format: VideoFormat;
 }
 
