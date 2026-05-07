@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { access, mkdir } from 'node:fs/promises';
+import { access, copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   ensureBinaryAvailable,
@@ -7,19 +8,19 @@ import {
   resolveRealcuganModelsDir,
 } from './binaries';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
-import type { AlphaMode } from '../../shared/formats';
+import type { AlphaMode, RealcuganVariant } from '../../shared/formats';
 import type { JobEmitter } from './types';
 
 const REAL_CUGAN_SCALES = [2, 3, 4] as const;
-const REAL_CUGAN_MODELS: Record<(typeof REAL_CUGAN_SCALES)[number], string> = {
-  2: 'up2x-no-denoise',
-  3: 'up3x-no-denoise',
-  4: 'up4x-no-denoise',
+const REAL_CUGAN_VARIANT_MODEL_SUFFIX: Record<RealcuganVariant, string> = {
+  'no-denoise': 'no-denoise',
+  denoise: 'denoise3x',
+  conservative: 'conservative',
 };
 
 export async function ensureRealcuganAvailable(): Promise<void> {
   const binaryPath = resolveRealcuganBinary();
-  const modelsDir = resolveRealcuganModelsDir();
+  const modelsDir = resolveRealcuganModelsDir('se');
 
   await ensureBinaryAvailable(binaryPath, 'Real-CUGAN');
   if (!modelsDir) {
@@ -27,13 +28,14 @@ export async function ensureRealcuganAvailable(): Promise<void> {
   }
 
   await Promise.all(
-    REAL_CUGAN_SCALES.flatMap((scale) => {
-      const modelName = REAL_CUGAN_MODELS[scale];
-      return [
-        access(join(modelsDir, `${modelName}.param`)),
-        access(join(modelsDir, `${modelName}.bin`)),
-      ];
-    })
+    REAL_CUGAN_SCALES.flatMap((scale) => [
+      access(join(modelsDir, `up${scale}x-no-denoise.param`)),
+      access(join(modelsDir, `up${scale}x-no-denoise.bin`)),
+      access(join(modelsDir, `up${scale}x-denoise3x.param`)),
+      access(join(modelsDir, `up${scale}x-denoise3x.bin`)),
+      access(join(modelsDir, `up${scale}x-conservative.param`)),
+      access(join(modelsDir, `up${scale}x-conservative.bin`)),
+    ])
   );
 }
 
@@ -41,6 +43,7 @@ export async function upscaleImageDirectory(options: {
   inputDir: string;
   outputDir: string;
   scale: number;
+  realcuganVariant?: RealcuganVariant;
   preserveAlpha?: boolean;
   alphaMode?: AlphaMode;
   emitter: JobEmitter;
@@ -53,7 +56,7 @@ export async function upscaleImageDirectory(options: {
   await mkdir(options.outputDir, { recursive: true });
 
   const binaryPath = resolveRealcuganBinary();
-  const modelsDir = resolveRealcuganModelsDir();
+  const variant = options.realcuganVariant ?? 'no-denoise';
   if (options.preserveAlpha) {
     await upscaleImageDirectoryPreservingAlpha({
       inputDir: options.inputDir,
@@ -62,49 +65,94 @@ export async function upscaleImageDirectory(options: {
       alphaMode: options.alphaMode ?? 'auto',
       emitter: options.emitter,
       upscaleOpaqueDirectory: (inputDir, outputDir) =>
-        runRealcugan(
-          binaryPath,
-          [
-            '-i',
-            inputDir,
-            '-o',
-            outputDir,
-            '-n',
-            '-1',
-            '-s',
-            String(options.scale),
-            '-m',
-            modelsDir,
-            '-f',
-            'png',
-          ],
-          options.emitter
-        ),
+        runRealcugan(binaryPath, inputDir, outputDir, options.scale, variant, options.emitter),
     });
     return;
   }
 
   await runRealcugan(
     binaryPath,
-    [
-      '-i',
-      options.inputDir,
-      '-o',
-      options.outputDir,
-      '-n',
-      '-1',
-      '-s',
-      String(options.scale),
-      '-m',
-      modelsDir,
-      '-f',
-      'png',
-    ],
+    options.inputDir,
+    options.outputDir,
+    options.scale,
+    variant,
     options.emitter
   );
 }
 
 async function runRealcugan(
+  binaryPath: string,
+  inputDir: string,
+  outputDir: string,
+  scale: number,
+  variant: RealcuganVariant,
+  emitter: JobEmitter
+): Promise<void> {
+  const { modelDir, noiseLevel, cleanup } = await prepareRealcuganModelDir(scale, variant);
+
+  try {
+    await runRealcuganProcess(
+      binaryPath,
+      [
+        '-i',
+        inputDir,
+        '-o',
+        outputDir,
+        '-n',
+        String(noiseLevel),
+        '-s',
+        String(scale),
+        '-m',
+        modelDir,
+        '-f',
+        'png',
+      ],
+      emitter
+    );
+  } finally {
+    await cleanup();
+  }
+}
+
+async function prepareRealcuganModelDir(
+  scale: number,
+  variant: RealcuganVariant
+): Promise<{ modelDir: string; noiseLevel: number; cleanup: () => Promise<void> }> {
+  const modelsDir = resolveRealcuganModelsDir('se');
+
+  if (variant === 'no-denoise') {
+    return {
+      modelDir: modelsDir,
+      noiseLevel: -1,
+      cleanup: async () => undefined,
+    };
+  }
+
+  if (variant === 'denoise') {
+    return {
+      modelDir: modelsDir,
+      noiseLevel: 3,
+      cleanup: async () => undefined,
+    };
+  }
+
+  const tempModelsDir = await mkdtemp(join(tmpdir(), 'sst-realcugan-conservative-'));
+  const sourceBase = `up${scale}x-${REAL_CUGAN_VARIANT_MODEL_SUFFIX.conservative}`;
+  const targetBase = `up${scale}x-no-denoise`;
+
+  await copyFile(join(modelsDir, `${sourceBase}.param`), join(tempModelsDir, `${targetBase}.param`));
+  await copyFile(join(modelsDir, `${sourceBase}.bin`), join(tempModelsDir, `${targetBase}.bin`));
+
+  return {
+    modelDir: tempModelsDir,
+    noiseLevel: -1,
+    cleanup: async () => {
+      await rm(tempModelsDir, { recursive: true, force: true });
+    },
+  };
+}
+
+async function runRealcuganProcess(
   binaryPath: string,
   args: string[],
   emitter: JobEmitter

@@ -1,10 +1,13 @@
 import { access } from 'node:fs/promises';
 import { basename, dirname, join, parse } from 'node:path';
-import { applyVideoFormatExtension, getVideoFormatExtension } from '../../shared/formats';
+import { applyVideoFormatExtension, getVideoFormatExtension, type ImageFormat } from '../../shared/formats';
 import type {
+  BatchImageUpscaleJob,
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
+  ImageUpscaleJob,
   SequenceToVideoJob,
+  VideoUpscaleJob,
   VideoToSequenceJob,
 } from '../../shared/jobs';
 import { dedupeAndSort, getImageFilesFromFolder } from './discovery';
@@ -91,6 +94,87 @@ export async function resolveBatchVideoOutput(
 
   return ensureUniqueFilePath(
     join(sequenceFolder, `${basename(sequenceFolder)}.${getVideoFormatExtension(request.format)}`)
+  );
+}
+
+export async function resolveImageUpscaleDirectory(
+  request: ImageUpscaleJob,
+  imagePaths: string[]
+): Promise<string> {
+  if (request.outputDir?.trim()) {
+    return request.outputDir;
+  }
+
+  const firstImagePath = imagePaths[0];
+  if (!firstImagePath) {
+    throw new Error('Select source images before choosing an output directory.');
+  }
+
+  return ensureUniqueDirectory(join(dirname(firstImagePath), 'upscaled_images'));
+}
+
+export async function resolveImageUpscaleOutputPath(
+  outputDir: string,
+  imagePath: string,
+  format: ImageFormat
+): Promise<string> {
+  return ensureUniqueFilePath(join(outputDir, `${parse(imagePath).name}.${format}`));
+}
+
+export function resolveBatchImageUpscaleDirectory(
+  request: BatchImageUpscaleJob,
+  imagePath: string
+): string {
+  if (request.outputMode === 'custom-root') {
+    const outputRoot = request.outputRoot?.trim();
+    if (!outputRoot) {
+      throw new Error('Choose an output root for the batch export.');
+    }
+
+    return outputRoot;
+  }
+
+  return join(dirname(imagePath), 'upscaled_images');
+}
+
+export async function resolveVideoUpscaleOutput(
+  request: VideoUpscaleJob
+): Promise<string> {
+  const videoPath = request.videoPath?.trim();
+  if (!videoPath) {
+    throw new Error('Select a source video before choosing an output file.');
+  }
+
+  if (request.outputPath?.trim()) {
+    return applyVideoFormatExtension(request.outputPath, request.format);
+  }
+
+  return ensureUniqueFilePath(
+    join(dirname(videoPath), `${parse(videoPath).name}_upscaled.${getVideoFormatExtension(request.format)}`)
+  );
+}
+
+export async function resolveBatchVideoUpscaleOutput(
+  request: {
+    outputMode: 'for-each' | 'custom-root';
+    outputRoot?: string;
+    format: VideoUpscaleJob['format'];
+  },
+  videoPath: string
+): Promise<string> {
+  if (request.outputMode === 'custom-root') {
+    const outputRoot = request.outputRoot?.trim();
+    if (!outputRoot) {
+      throw new Error('Choose an output root for the batch export.');
+    }
+
+    return ensureUniqueFilePath(
+      join(outputRoot, `${parse(videoPath).name}_upscaled.${getVideoFormatExtension(request.format)}`)
+    );
+  }
+
+  return ensureUniqueFilePath(
+    join(dirname(videoPath), `${parse(videoPath).name}_upscaled.${getVideoFormatExtension(request.format)}`)
   );
 }
 

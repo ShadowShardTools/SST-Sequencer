@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises';
-import { basename, extname, join } from 'node:path';
+import { basename, extname, join, parse } from 'node:path';
 
 const IMAGE_EXTENSIONS = new Set([
   '.png',
@@ -27,6 +27,9 @@ const naturalCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 });
+const APP_GENERATED_DIRECTORY_NAMES = new Set(['upscaled_images']);
+const APP_GENERATED_DIRECTORY_SUFFIXES = ['_sequence'];
+const APP_GENERATED_VIDEO_SUFFIXES = ['_upscaled'];
 
 export function dedupeAndSort(paths: string[]): string[] {
   return [...new Set(paths)].sort((left, right) =>
@@ -55,11 +58,45 @@ export async function discoverVideoFiles(
     const entries = await readdir(current, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = join(current, entry.name);
-      if (entry.isFile() && isVideoFile(fullPath)) {
+      if (entry.isFile() && isVideoFile(fullPath) && !isGeneratedVideoOutput(fullPath)) {
         files.push(fullPath);
       }
 
-      if (recursive && entry.isDirectory()) {
+      if (recursive && entry.isDirectory() && !isGeneratedDirectory(entry.name)) {
+        pending.push(fullPath);
+      }
+    }
+  }
+
+  return dedupeAndSort(files);
+}
+
+export async function discoverImageFiles(
+  scanRoot: string | undefined,
+  recursive: boolean
+): Promise<string[]> {
+  const root = scanRoot?.trim();
+  if (!root) {
+    throw new Error('Choose a source folder to scan for images.');
+  }
+
+  const files: string[] = [];
+  const pending = [root];
+
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) {
+      continue;
+    }
+
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(current, entry.name);
+      if (entry.isFile() && isImageFile(fullPath)) {
+        files.push(fullPath);
+      }
+
+      if (recursive && entry.isDirectory() && !isGeneratedDirectory(entry.name)) {
         pending.push(fullPath);
       }
     }
@@ -96,7 +133,7 @@ export async function discoverSequenceFolders(
         continue;
       }
 
-      if (recursive || current.depth === 0) {
+      if ((recursive || current.depth === 0) && !isGeneratedDirectory(entry.name)) {
         pending.push({
           path: join(current.path, entry.name),
           depth: current.depth + 1,
@@ -123,4 +160,18 @@ function isImageFile(filePath: string): boolean {
 
 function isVideoFile(filePath: string): boolean {
   return VIDEO_EXTENSIONS.has(extname(filePath).toLowerCase());
+}
+
+function isGeneratedDirectory(name: string): boolean {
+  const normalized = name.toLowerCase();
+  if (APP_GENERATED_DIRECTORY_NAMES.has(normalized)) {
+    return true;
+  }
+
+  return APP_GENERATED_DIRECTORY_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+}
+
+function isGeneratedVideoOutput(filePath: string): boolean {
+  const normalized = parse(filePath).name.toLowerCase();
+  return APP_GENERATED_VIDEO_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
 }

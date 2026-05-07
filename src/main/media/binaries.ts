@@ -35,16 +35,26 @@ export function resolveRealcuganBinary(): string {
   return resolveBundledExecutable('realcugan', 'realcugan-ncnn-vulkan');
 }
 
-export function resolveRealcuganModelsDir(): string {
-  return resolveBundledDirectory('realcugan', 'models-se');
+export function resolveRealcuganModelsDir(variant: 'se' | 'pro' | 'nose' = 'se'): string {
+  return resolveBundledDirectory('realcugan', `models-${variant}`);
 }
 
 export function resolveWaifu2xBinary(): string {
   return resolveBundledExecutable('waifu2x', 'waifu2x-ncnn-vulkan');
 }
 
-export function resolveWaifu2xModelsDir(): string {
-  return resolveBundledDirectory('waifu2x', 'models-cunet');
+export function resolveWaifu2xModelsDir(
+  model: 'cunet' | 'anime-style-art-rgb' | 'photo' = 'cunet'
+): string {
+  switch (model) {
+    case 'anime-style-art-rgb':
+      return resolveBundledDirectory('waifu2x', 'models-upconv_7_anime_style_art_rgb');
+    case 'photo':
+      return resolveBundledDirectory('waifu2x', 'models-upconv_7_photo');
+    case 'cunet':
+    default:
+      return resolveBundledDirectory('waifu2x', 'models-cunet');
+  }
 }
 
 export function resolveRealSrBinary(): string {

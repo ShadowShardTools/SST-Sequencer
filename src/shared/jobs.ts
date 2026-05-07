@@ -1,17 +1,30 @@
 import type {
   AlphaMode,
   BatchOutputMode,
+  BatchImageSourceMode,
   BatchSequenceSourceMode,
   BatchVideoSourceMode,
   ImageFormat,
   SequenceInputMode,
   UpscaleMode,
-  UpscalerType,
+  UpscalerConfig,
   VideoFormat,
 } from './formats';
 import type { ResolutionMode } from './resolution';
 
-export interface SequenceToVideoJob {
+type UpscaleSettings = {
+  upscaleMode: UpscaleMode;
+  alphaMode: AlphaMode;
+  upscalerConfig: UpscalerConfig;
+};
+
+type ResolutionSettings = {
+  resolutionMode: ResolutionMode;
+  customWidth?: number;
+  customHeight?: number;
+};
+
+export interface SequenceToVideoJob extends UpscaleSettings, ResolutionSettings {
   kind: 'sequence-to-video';
   sourceMode: SequenceInputMode;
   sequenceFolder?: string;
@@ -20,36 +33,62 @@ export interface SequenceToVideoJob {
   fps: number;
   speed: number;
   quality: number;
-  resolutionMode: ResolutionMode;
-  customWidth?: number;
-  customHeight?: number;
-  upscaler: UpscalerType;
-  upscaleMode: UpscaleMode;
-  epxAntialias: boolean;
-  alphaMode: AlphaMode;
   format: VideoFormat;
 }
 
-export interface VideoToSequenceJob {
+export interface VideoToSequenceJob extends UpscaleSettings, ResolutionSettings {
   kind: 'video-to-sequence';
   videoPath?: string;
   outputDir?: string;
   fps: number;
   speed: number;
   quality: number;
-  resolutionMode: ResolutionMode;
-  customWidth?: number;
-  customHeight?: number;
-  upscaler: UpscalerType;
-  upscaleMode: UpscaleMode;
-  epxAntialias: boolean;
-  alphaMode: AlphaMode;
   format: ImageFormat;
   prefix: string;
   startNumber: number;
 }
 
-export interface BatchVideoToSequenceJob {
+export interface ImageUpscaleJob extends UpscaleSettings, ResolutionSettings {
+  kind: 'image-upscale';
+  imagePaths?: string[];
+  outputDir?: string;
+  quality: number;
+  format: ImageFormat;
+}
+
+export interface VideoUpscaleJob extends UpscaleSettings, ResolutionSettings {
+  kind: 'video-upscale';
+  videoPath?: string;
+  outputPath?: string;
+  quality: number;
+  format: VideoFormat;
+}
+
+export interface BatchImageUpscaleJob extends UpscaleSettings, ResolutionSettings {
+  kind: 'batch-image-upscale';
+  sourceMode: BatchImageSourceMode;
+  imagePaths?: string[];
+  scanRoot?: string;
+  recursive: boolean;
+  outputMode: BatchOutputMode;
+  outputRoot?: string;
+  quality: number;
+  format: ImageFormat;
+}
+
+export interface BatchVideoUpscaleJob extends UpscaleSettings, ResolutionSettings {
+  kind: 'batch-video-upscale';
+  sourceMode: BatchVideoSourceMode;
+  videoPaths?: string[];
+  scanRoot?: string;
+  recursive: boolean;
+  outputMode: BatchOutputMode;
+  outputRoot?: string;
+  quality: number;
+  format: VideoFormat;
+}
+
+export interface BatchVideoToSequenceJob extends UpscaleSettings, ResolutionSettings {
   kind: 'batch-video-to-sequence';
   sourceMode: BatchVideoSourceMode;
   videoPaths?: string[];
@@ -61,19 +100,12 @@ export interface BatchVideoToSequenceJob {
   fps: number;
   speed: number;
   quality: number;
-  resolutionMode: ResolutionMode;
-  customWidth?: number;
-  customHeight?: number;
-  upscaler: UpscalerType;
-  upscaleMode: UpscaleMode;
-  epxAntialias: boolean;
-  alphaMode: AlphaMode;
   format: ImageFormat;
   prefix: string;
   startNumber: number;
 }
 
-export interface BatchSequenceToVideoJob {
+export interface BatchSequenceToVideoJob extends UpscaleSettings, ResolutionSettings {
   kind: 'batch-sequence-to-video';
   sourceMode: BatchSequenceSourceMode;
   sequenceFolders?: string[];
@@ -84,19 +116,16 @@ export interface BatchSequenceToVideoJob {
   fps: number;
   speed: number;
   quality: number;
-  resolutionMode: ResolutionMode;
-  customWidth?: number;
-  customHeight?: number;
-  upscaler: UpscalerType;
-  upscaleMode: UpscaleMode;
-  epxAntialias: boolean;
-  alphaMode: AlphaMode;
   format: VideoFormat;
 }
 
 export type JobRequest =
   | SequenceToVideoJob
   | VideoToSequenceJob
+  | ImageUpscaleJob
+  | VideoUpscaleJob
+  | BatchImageUpscaleJob
+  | BatchVideoUpscaleJob
   | BatchVideoToSequenceJob
   | BatchSequenceToVideoJob;
 

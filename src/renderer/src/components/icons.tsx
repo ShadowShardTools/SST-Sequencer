@@ -44,3 +44,18 @@ export function CheckIcon() {
     </svg>
   );
 }
+
+export function InfoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <circle cx="7" cy="7" r="5.75" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M7 5.75v3.1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="7" cy="4.1" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}

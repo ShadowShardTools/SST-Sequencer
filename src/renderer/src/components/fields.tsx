@@ -1,7 +1,7 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
 import type { BatchOutputMode, SelectOption } from '../../../shared/formats';
-import { clampToRange, roundToStep, trimNumber } from '../lib/media';
-import { FolderIcon, VideoIcon } from './icons';
+import { clampToRange, roundToStep, trimNumber } from '../lib/numeric';
+import { FolderIcon, InfoIcon, VideoIcon } from './icons';
 import { MetaChip } from './shell';
 
 export type DropNotice = {
@@ -137,9 +137,30 @@ export function PathPicker(props: {
 export function InspectorFieldRow(props: { label: string; note?: string; children: ReactNode }) {
   return (
     <div className="space-y-2 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
-      {props.label && <div className="text-sm font-semibold text-white">{props.label}</div>}
+      {props.label && (
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold text-white">{props.label}</div>
+          {props.note && <InfoTip text={props.note} />}
+        </div>
+      )}
       {props.children}
-      {props.note && <div className="text-xs leading-5 text-slate-400">{props.note}</div>}
+    </div>
+  );
+}
+
+function InfoTip(props: { text: string }) {
+  return (
+    <div className="info-tip-group relative">
+      <button
+        type="button"
+        className="info-tip-trigger flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-400"
+        aria-label="Show parameter details"
+      >
+        <InfoIcon />
+      </button>
+      <div className="info-tip-bubble" role="tooltip">
+        {props.text}
+      </div>
     </div>
   );
 }

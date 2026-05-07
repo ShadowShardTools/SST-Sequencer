@@ -64,3 +64,32 @@ export async function resolveVideoResizeTarget(
 
   return resolution;
 }
+
+export async function resolveImageResizeTarget(
+  settings: ResolutionSettings,
+  imagePath: string,
+  options: {
+    enforceEven?: boolean;
+  } = {}
+): Promise<ResolvedResolution | undefined> {
+  if (settings.resolutionMode === 'source') {
+    return undefined;
+  }
+
+  if (settings.resolutionMode === 'custom') {
+    const resolution = resolveResolution(settings, {}, options);
+    if (!resolution) {
+      throw new Error('Custom resolution is incomplete.');
+    }
+
+    return resolution;
+  }
+
+  const mediaInfo = await probeMediaInfo(imagePath);
+  const resolution = resolveResolution(settings, mediaInfo, options);
+  if (!resolution) {
+    throw new Error('Could not detect the source image resolution for resizing.');
+  }
+
+  return resolution;
+}

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import type { AlphaMode } from '../../shared/formats';
+import type { AlphaMode, Waifu2xModel, Waifu2xNoiseLevel } from '../../shared/formats';
 import { ensureBinaryAvailable, resolveWaifu2xBinary, resolveWaifu2xModelsDir } from './binaries';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
 import { getImageFilesFromFolder } from './discovery';
@@ -15,25 +15,29 @@ const WAIFU2X_NATIVE_SCALE = {
   3: 4,
   4: 4,
 } as const;
-const WAIFU2X_NOISE_LEVEL = -1;
-
-export async function ensureWaifu2xAvailable(): Promise<void> {
+export async function ensureWaifu2xAvailable(model: Waifu2xModel = 'cunet'): Promise<void> {
   const binaryPath = resolveWaifu2xBinary();
-  const modelsDir = resolveWaifu2xModelsDir();
+  const modelsDir = resolveWaifu2xModelsDir(model);
 
   await ensureBinaryAvailable(binaryPath, 'Waifu2x');
   if (!modelsDir) {
     throw new Error('Waifu2x models directory could not be resolved.');
   }
 
-  await access(join(modelsDir, 'noise0_scale2.0x_model.param'));
-  await access(join(modelsDir, 'noise0_scale2.0x_model.bin'));
+  await Promise.all([
+    access(join(modelsDir, 'scale2.0x_model.param')),
+    access(join(modelsDir, 'scale2.0x_model.bin')),
+    access(join(modelsDir, 'noise3_scale2.0x_model.param')),
+    access(join(modelsDir, 'noise3_scale2.0x_model.bin')),
+  ]);
 }
 
 export async function upscaleImageDirectory(options: {
   inputDir: string;
   outputDir: string;
   scale: number;
+  waifu2xModel?: Waifu2xModel;
+  waifu2xNoiseLevel?: Waifu2xNoiseLevel;
   preserveAlpha?: boolean;
   alphaMode?: AlphaMode;
   emitter: JobEmitter;
@@ -42,11 +46,13 @@ export async function upscaleImageDirectory(options: {
     throw new Error(`Unsupported Waifu2x scale: ${options.scale}.`);
   }
 
-  await ensureWaifu2xAvailable();
+  const model = options.waifu2xModel ?? 'cunet';
+  const noiseLevel = options.waifu2xNoiseLevel ?? 'off';
+  await ensureWaifu2xAvailable(model);
   await mkdir(options.outputDir, { recursive: true });
 
   const binaryPath = resolveWaifu2xBinary();
-  const modelsDir = resolveWaifu2xModelsDir();
+  const modelsDir = resolveWaifu2xModelsDir(model);
 
   if (options.preserveAlpha) {
     await upscaleImageDirectoryPreservingAlpha({
@@ -62,6 +68,7 @@ export async function upscaleImageDirectory(options: {
           inputDir,
           outputDir,
           options.scale,
+          noiseLevel,
           options.emitter
         ),
     });
@@ -74,6 +81,7 @@ export async function upscaleImageDirectory(options: {
     options.inputDir,
     options.outputDir,
     options.scale,
+    noiseLevel,
     options.emitter
   );
 }
@@ -84,9 +92,11 @@ async function runWaifu2xDirectory(
   inputDir: string,
   outputDir: string,
   scale: number,
+  noiseLevel: Waifu2xNoiseLevel,
   emitter: JobEmitter
 ): Promise<void> {
   const nativeScale = WAIFU2X_NATIVE_SCALE[scale as keyof typeof WAIFU2X_NATIVE_SCALE];
+  const nativeNoiseLevel = noiseLevel === 'off' ? -1 : Number(noiseLevel);
 
   if (nativeScale === scale) {
     await runWaifu2x(
@@ -99,7 +109,7 @@ async function runWaifu2xDirectory(
         '-m',
         modelsDir,
         '-n',
-        String(WAIFU2X_NOISE_LEVEL),
+        String(nativeNoiseLevel),
         '-s',
         String(nativeScale),
         '-f',
@@ -123,7 +133,7 @@ async function runWaifu2xDirectory(
         '-m',
         modelsDir,
         '-n',
-        String(WAIFU2X_NOISE_LEVEL),
+        String(nativeNoiseLevel),
         '-s',
         String(nativeScale),
         '-f',

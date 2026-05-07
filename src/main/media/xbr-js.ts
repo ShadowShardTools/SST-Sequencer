@@ -7,7 +7,7 @@ import {
 } from './png-rgba';
 import type { JobEmitter } from './types';
 
-const XBR_JS_SCALES = [2, 3, 4] as const;
+const XBR_JS_SCALES = [2, 3, 4, 6, 8] as const;
 
 export async function upscaleImageDirectory(options: {
   inputDir: string;
@@ -40,27 +40,36 @@ export async function upscaleImageDirectory(options: {
 
 function upscaleFrameWithXbrJs(frame: RgbaFrame, scale: number, preserveAlpha: boolean): RgbaFrame {
   const preparedFrame = preserveAlpha ? replaceLowAlphaRgb(frame, 0) : frame;
-  const inputPixels = new Uint32Array(
-    preparedFrame.data.buffer,
-    preparedFrame.data.byteOffset,
-    preparedFrame.data.byteLength / 4
+  const steps = scale === 6 ? [2, 3] : scale === 8 ? [2, 4] : [scale];
+
+  return steps.reduce(
+    (currentFrame, currentScale) => upscaleFrameWithXbrJsStep(currentFrame, currentScale, preserveAlpha),
+    preparedFrame
   );
+}
+
+function upscaleFrameWithXbrJsStep(
+  frame: RgbaFrame,
+  scale: number,
+  preserveAlpha: boolean
+): RgbaFrame {
+  const inputPixels = new Uint32Array(frame.data.buffer, frame.data.byteOffset, frame.data.byteLength / 4);
   const outputPixels =
     scale === 2
-      ? xbr2x(inputPixels, preparedFrame.width, preparedFrame.height, {
+      ? xbr2x(inputPixels, frame.width, frame.height, {
           scaleAlpha: preserveAlpha,
         })
       : scale === 3
-        ? xbr3x(inputPixels, preparedFrame.width, preparedFrame.height, {
+        ? xbr3x(inputPixels, frame.width, frame.height, {
             scaleAlpha: preserveAlpha,
           })
-        : xbr4x(inputPixels, preparedFrame.width, preparedFrame.height, {
+        : xbr4x(inputPixels, frame.width, frame.height, {
             scaleAlpha: preserveAlpha,
           });
 
   return {
-    width: preparedFrame.width * scale,
-    height: preparedFrame.height * scale,
+    width: frame.width * scale,
+    height: frame.height * scale,
     data: new Uint8Array(outputPixels.buffer, outputPixels.byteOffset, outputPixels.byteLength),
   };
 }

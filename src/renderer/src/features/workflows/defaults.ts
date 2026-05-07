@@ -1,7 +1,12 @@
+import { createDefaultUpscalerConfig } from '../../../../shared/formats';
 import type {
+  BatchImageUpscaleJob,
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
+  BatchVideoUpscaleJob,
+  ImageUpscaleJob,
   SequenceToVideoJob,
+  VideoUpscaleJob,
   VideoToSequenceJob,
 } from '../../../../shared/jobs';
 import type { WorkflowCategory } from './types';
@@ -32,10 +37,9 @@ export const initialSequenceToVideo: SequenceToVideoJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
-  upscaler: 'realesrgan-anime-video',
   upscaleMode: 'off',
-  epxAntialias: false,
   alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realesrgan'),
   format: 'mp4-h264',
 };
 
@@ -49,13 +53,40 @@ export const initialVideoToSequence: VideoToSequenceJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
-  upscaler: 'realesrgan-anime-video',
   upscaleMode: 'off',
-  epxAntialias: false,
   alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realesrgan'),
   format: 'png',
   prefix: 'frame',
   startNumber: 1,
+};
+
+export const initialImageUpscale: ImageUpscaleJob = {
+  kind: 'image-upscale',
+  imagePaths: [],
+  outputDir: '',
+  quality: 100,
+  resolutionMode: 'source',
+  customWidth: 1920,
+  customHeight: 1080,
+  upscaleMode: '2x',
+  alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realsr'),
+  format: 'png',
+};
+
+export const initialVideoUpscale: VideoUpscaleJob = {
+  kind: 'video-upscale',
+  videoPath: '',
+  outputPath: '',
+  quality: 100,
+  resolutionMode: 'source',
+  customWidth: 1920,
+  customHeight: 1080,
+  upscaleMode: '2x',
+  alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realsr'),
+  format: 'mp4-h264',
 };
 
 export const initialBatchVideoToSequence: BatchVideoToSequenceJob = {
@@ -73,13 +104,48 @@ export const initialBatchVideoToSequence: BatchVideoToSequenceJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
-  upscaler: 'realesrgan-anime-video',
   upscaleMode: 'off',
-  epxAntialias: false,
   alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realesrgan'),
   format: 'png',
   prefix: 'frame',
   startNumber: 1,
+};
+
+export const initialBatchImageUpscale: BatchImageUpscaleJob = {
+  kind: 'batch-image-upscale',
+  sourceMode: 'files',
+  imagePaths: [],
+  scanRoot: '',
+  recursive: true,
+  outputMode: 'for-each',
+  outputRoot: '',
+  quality: 100,
+  resolutionMode: 'source',
+  customWidth: 1920,
+  customHeight: 1080,
+  upscaleMode: '2x',
+  alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realsr'),
+  format: 'png',
+};
+
+export const initialBatchVideoUpscale: BatchVideoUpscaleJob = {
+  kind: 'batch-video-upscale',
+  sourceMode: 'files',
+  videoPaths: [],
+  scanRoot: '',
+  recursive: true,
+  outputMode: 'for-each',
+  outputRoot: '',
+  quality: 100,
+  resolutionMode: 'source',
+  customWidth: 1920,
+  customHeight: 1080,
+  upscaleMode: '2x',
+  alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realsr'),
+  format: 'mp4-h264',
 };
 
 export const initialBatchSequenceToVideo: BatchSequenceToVideoJob = {
@@ -96,9 +162,8 @@ export const initialBatchSequenceToVideo: BatchSequenceToVideoJob = {
   resolutionMode: 'source',
   customWidth: 1920,
   customHeight: 1080,
-  upscaler: 'realesrgan-anime-video',
   upscaleMode: 'off',
-  epxAntialias: false,
   alphaMode: 'auto',
+  upscalerConfig: createDefaultUpscalerConfig('realesrgan'),
   format: 'mp4-h264',
 };

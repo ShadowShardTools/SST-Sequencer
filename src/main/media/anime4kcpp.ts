@@ -1,14 +1,13 @@
 import { spawn } from 'node:child_process';
 import { mkdir, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import type { AlphaMode } from '../../shared/formats';
+import type { AlphaMode, Anime4kcppModel } from '../../shared/formats';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
 import { ensureBinaryAvailable, resolveAnime4kcppBinary } from './binaries';
 import { getImageFilesFromFolder } from './discovery';
 import type { JobEmitter } from './types';
 
 const ANIME4KCPP_SCALES = [2, 3, 4] as const;
-const ANIME4KCPP_MODEL = 'arnet-hdn';
 const ANIME4KCPP_PROCESSOR_PRIORITY = ['cuda', 'opencl', 'cpu'] as const;
 
 type Anime4kcppProcessor = (typeof ANIME4KCPP_PROCESSOR_PRIORITY)[number];
@@ -34,6 +33,7 @@ export async function upscaleImageDirectory(options: {
   inputDir: string;
   outputDir: string;
   scale: number;
+  anime4kcppModel?: Anime4kcppModel;
   preserveAlpha?: boolean;
   alphaMode?: AlphaMode;
   emitter: JobEmitter;
@@ -46,6 +46,7 @@ export async function upscaleImageDirectory(options: {
   await mkdir(options.outputDir, { recursive: true });
 
   const binaryPath = resolveAnime4kcppBinary();
+  const model = options.anime4kcppModel ?? 'arnet-hdn';
   const processor = await resolveAnime4kcppProcessor(binaryPath);
   if (options.preserveAlpha) {
     await upscaleImageDirectoryPreservingAlpha({
@@ -59,6 +60,7 @@ export async function upscaleImageDirectory(options: {
         await upscaleFilesWithAnime4kcpp(
           binaryPath,
           processor,
+          model,
           inputImagePaths,
           outputDir,
           options.scale,
@@ -73,6 +75,7 @@ export async function upscaleImageDirectory(options: {
   await upscaleFilesWithAnime4kcpp(
     binaryPath,
     processor,
+    model,
     inputImagePaths,
     options.outputDir,
     options.scale,
@@ -83,6 +86,7 @@ export async function upscaleImageDirectory(options: {
 async function upscaleFilesWithAnime4kcpp(
   binaryPath: string,
   processor: Anime4kcppProcessor,
+  model: Anime4kcppModel,
   inputImagePaths: string[],
   outputDir: string,
   scale: number,
@@ -98,7 +102,7 @@ async function upscaleFilesWithAnime4kcpp(
         '-o',
         join(outputDir, outputName),
         '-m',
-        ANIME4KCPP_MODEL,
+        model,
         '-p',
         processor,
         '-f',

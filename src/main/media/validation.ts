@@ -1,17 +1,18 @@
 import {
   getAlphaModeLabel,
+  getUpscalerConfigValidationError,
   getUpscalerLabel,
+  isUpscaleModeSupportedByUpscaler,
   isValidAlphaMode,
-  isValidFps,
-  isValidQuality,
-  isValidSpeed,
   isValidUpscaleMode,
   isUpscalerSupportedOnPlatform,
   isValidUpscalerType,
-  type UpscaleMode,
-  type UpscalerType,
   type AlphaMode,
-} from '../../shared/formats';
+  type UpscaleMode,
+  type UpscalerConfig,
+  type UpscalerType,
+} from '../../shared/upscalers/registry';
+import { isValidFps, isValidQuality, isValidSpeed } from '../../shared/formats';
 import { isValidResolutionSettings, type ResolutionSettings } from '../../shared/resolution';
 
 export function validateRateSettings(fps: number, speed: number): void {
@@ -43,9 +44,13 @@ export function validateResolutionSetting(settings: ResolutionSettings): void {
   }
 }
 
-export function validateUpscaleMode(mode: UpscaleMode): void {
+export function validateUpscaleMode(mode: UpscaleMode, upscaler?: UpscalerType): void {
   if (!isValidUpscaleMode(mode)) {
     throw new Error('Upscale mode is invalid.');
+  }
+
+  if (upscaler && !isUpscaleModeSupportedByUpscaler(upscaler, mode)) {
+    throw new Error(`${getUpscalerLabel(upscaler)} does not support ${mode}.`);
   }
 }
 
@@ -62,6 +67,13 @@ export function validateUpscalerType(upscaler: UpscalerType): void {
 export function validateAlphaMode(alphaMode: AlphaMode): void {
   if (!isValidAlphaMode(alphaMode)) {
     throw new Error(`Alpha mode is invalid: ${getAlphaModeLabel(alphaMode)}.`);
+  }
+}
+
+export function validateUpscalerPresetConfiguration(config: UpscalerConfig): void {
+  const validationError = getUpscalerConfigValidationError(config);
+  if (validationError) {
+    throw new Error(validationError);
   }
 }
 

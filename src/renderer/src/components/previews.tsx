@@ -1,16 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { SequenceToVideoJob } from '../../../shared/jobs';
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../shared/previews';
-import {
-  basenameLabel,
-  formatDuration,
-  formatResolution,
-  getExtension,
-  getParentDirectory,
-  getVideoAspectRatio,
-  isDisplayableImagePath,
-  trimNumber,
-} from '../lib/media';
+import { isDisplayableImagePath } from '../lib/file-types';
+import { formatDuration, formatResolution, getVideoAspectRatio } from '../lib/formatters';
+import { trimNumber } from '../lib/numeric';
+import { basenameLabel, getExtension, getParentDirectory } from '../lib/path-utils';
 
 export function SequencePreviewStrip(props: {
   preview: SequenceSourcePreview;

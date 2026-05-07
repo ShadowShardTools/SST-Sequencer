@@ -3,15 +3,22 @@ import {
   applyVideoFormatExtension,
   getDefaultUpscalerForPlatform,
   getUpscaleFactor,
+  getSupportedUpscaleModesForUpscaler,
+  getSupportedUpscaleOptionsForUpscaler,
+  getUpscalerSupportedScaleSummary,
+  isUpscaleModeSupportedByUpscaler,
   getSupportedUpscalerOptions,
   imageFormatSupportsAlpha,
   getVideoFormatExtension,
   getVideoFormatLabel,
+  normalizeUpscaleModeForUpscaler,
   UPSCALER_OPTIONS,
   IMAGE_FORMAT_OPTIONS,
+  REAL_ESRGAN_MODEL_OPTIONS,
   UPSCALE_OPTIONS,
   VIDEO_FORMAT_OPTIONS,
   videoFormatSupportsAlpha,
+  isValidRealEsrganModel,
 } from './formats';
 
 describe('shared format metadata', () => {
@@ -28,9 +35,16 @@ describe('shared format metadata', () => {
   });
 
   it('includes the supported upscale modes', () => {
-    expect(UPSCALE_OPTIONS.map((option) => option.value)).toEqual(['off', '2x', '3x', '4x']);
+    expect(UPSCALE_OPTIONS.map((option) => option.value)).toEqual([
+      'off',
+      '2x',
+      '3x',
+      '4x',
+      '6x',
+      '8x',
+    ]);
     expect(UPSCALER_OPTIONS.map((option) => option.value)).toEqual([
-      'realesrgan-anime-video',
+      'realesrgan',
       'realcugan',
       'waifu2x',
       'realsr',
@@ -43,11 +57,55 @@ describe('shared format metadata', () => {
     ]);
     expect(getUpscaleFactor('off')).toBe(1);
     expect(getUpscaleFactor('4x')).toBe(4);
+    expect(getUpscaleFactor('8x')).toBe(8);
+  });
+
+  it('includes the supported Real-ESRGAN models', () => {
+    expect(REAL_ESRGAN_MODEL_OPTIONS.map((option) => option.value)).toEqual([
+      'realesrgan-x4plus',
+      'realesrgan-x4plus-anime',
+      'realesr-animevideov3',
+    ]);
+    expect(isValidRealEsrganModel('realesrgan-x4plus')).toBe(true);
+    expect(isValidRealEsrganModel('invalid-model')).toBe(false);
+  });
+
+  it('reports supported scales per upscaler', () => {
+    expect(getSupportedUpscaleModesForUpscaler('realesrgan')).toEqual([
+      'off',
+      '2x',
+      '3x',
+      '4x',
+      '6x',
+      '8x',
+    ]);
+    expect(getSupportedUpscaleModesForUpscaler('pixel-scale-epx')).toEqual([
+      'off',
+      '2x',
+      '3x',
+      '4x',
+      '6x',
+      '8x',
+    ]);
+    expect(getSupportedUpscaleOptionsForUpscaler('nearest').map((option) => option.value)).toEqual([
+      'off',
+      '2x',
+      '3x',
+      '4x',
+      '6x',
+      '8x',
+    ]);
+    expect(isUpscaleModeSupportedByUpscaler('dat', '6x')).toBe(true);
+    expect(isUpscaleModeSupportedByUpscaler('pixel-scale-epx', '8x')).toBe(true);
+    expect(isUpscaleModeSupportedByUpscaler('realesrgan', '8x')).toBe(true);
+    expect(normalizeUpscaleModeForUpscaler('realesrgan', '8x')).toBe('8x');
+    expect(normalizeUpscaleModeForUpscaler('pixel-scale-epx', '8x')).toBe('8x');
+    expect(getUpscalerSupportedScaleSummary('realesrgan')).toBe('2x, 3x, 4x, 6x, 8x');
   });
 
   it('filters upscalers by platform support', () => {
     expect(getSupportedUpscalerOptions('win32').map((option) => option.value)).toEqual([
-      'realesrgan-anime-video',
+      'realesrgan',
       'realcugan',
       'waifu2x',
       'realsr',
@@ -59,7 +117,7 @@ describe('shared format metadata', () => {
       'nearest',
     ]);
     expect(getSupportedUpscalerOptions('darwin').map((option) => option.value)).toEqual([
-      'realesrgan-anime-video',
+      'realesrgan',
       'realcugan',
       'waifu2x',
       'realsr',
@@ -69,7 +127,7 @@ describe('shared format metadata', () => {
       'pixel-scale-epx',
       'nearest',
     ]);
-    expect(getDefaultUpscalerForPlatform('linux')).toBe('realesrgan-anime-video');
+    expect(getDefaultUpscalerForPlatform('linux')).toBe('realesrgan');
   });
 
   it('reports alpha-capable formats', () => {

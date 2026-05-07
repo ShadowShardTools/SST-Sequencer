@@ -37,6 +37,22 @@ describe('pixel-art upscalers', () => {
     expect(outputFrame.height).toBe(4);
   });
 
+  it('supports xBR.js 8x output', async () => {
+    const { inputDir, outputDir } = await createFixtureDirs();
+    await writePngFixture(join(inputDir, 'frame_000001.png'));
+
+    await upscaleWithXbrJs({
+      inputDir,
+      outputDir,
+      scale: 8,
+      emitter: noopEmitter,
+    });
+
+    const outputFrame = await readPngRgbaFrame(join(outputDir, 'frame_000001.png'));
+    expect(outputFrame.width).toBe(16);
+    expect(outputFrame.height).toBe(16);
+  });
+
   it('avoids visible white fringe pixels for transparent xBR.js sources', async () => {
     const { inputDir, outputDir } = await createFixtureDirs();
     await writeTransparentWhiteFixture(join(inputDir, 'frame_000001.png'));
@@ -81,6 +97,22 @@ describe('pixel-art upscalers', () => {
     const outputFrame = await readPngRgbaFrame(join(outputDir, 'frame_000001.png'));
     expect(outputFrame.width).toBe(6);
     expect(outputFrame.height).toBe(6);
+  });
+
+  it('supports pixel-scale-epx 8x output', async () => {
+    const { inputDir, outputDir } = await createFixtureDirs();
+    await writePngFixture(join(inputDir, 'frame_000001.png'));
+
+    await upscaleWithPixelScaleEpx({
+      inputDir,
+      outputDir,
+      scale: 8,
+      emitter: noopEmitter,
+    });
+
+    const outputFrame = await readPngRgbaFrame(join(outputDir, 'frame_000001.png'));
+    expect(outputFrame.width).toBe(16);
+    expect(outputFrame.height).toBe(16);
   });
 
   it('avoids visible white fringe pixels for transparent pixel-scale-epx sources', async () => {

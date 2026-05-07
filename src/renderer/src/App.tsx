@@ -1,37 +1,18 @@
-import { startTransition, useEffect, useEffectEvent, useState } from 'react';
-import { getDefaultUpscalerForPlatform, RATE_LIMITS } from '../../shared/formats';
+import { startTransition, useEffect, useEffectEvent, useMemo, useState } from 'react';
+import { getDefaultUpscalerForPlatform, getSupportedUpscalerOptions } from '../../shared/upscalers/registry';
 import { resolveResolution } from '../../shared/resolution';
-import type {
-  BatchSequenceToVideoJob,
-  BatchVideoToSequenceJob,
-  JobEvent,
-  SequenceToVideoJob,
-  VideoToSequenceJob,
-} from '../../shared/jobs';
-import { type DropNotice } from './components/fields';
+import type { JobEvent } from '../../shared/jobs';
 import { CompactSegmentGroup, Panel, ProgressSteps } from './components/shell';
-import {
-  useSequenceMotionPreview,
-  useSequenceSourcePreview,
-  useVideoSourcePreview,
-} from './hooks/use-media-previews';
-import {
-  buildSuggestedVideoName,
-  estimateVideoSizeNote,
-  extractDroppedPayload,
-  getParentDirectory,
-  isImagePath,
-  isVideoPath,
-  replacePathExtension,
-  sortNaturalPaths,
-} from './lib/media';
-import {
-  initialBatchSequenceToVideo,
-  initialBatchVideoToSequence,
-  initialSequenceToVideo,
-  initialVideoToSequence,
-  modeMeta,
-} from './features/workflows/defaults';
+import { useBatchImageUpscaleWorkflow } from './hooks/use-batch-image-upscale';
+import { useBatchSequenceToVideoWorkflow } from './hooks/use-batch-sequence-to-video';
+import { useBatchVideoUpscaleWorkflow } from './hooks/use-batch-video-upscale';
+import { useBatchVideoToSequenceWorkflow } from './hooks/use-batch-video-to-sequence';
+import { useImageUpscaleWorkflow } from './hooks/use-image-upscale';
+import { useSequenceToVideoWorkflow } from './hooks/use-sequence-to-video';
+import { useVideoToSequenceWorkflow } from './hooks/use-video-to-sequence';
+import { useVideoUpscaleWorkflow } from './hooks/use-video-upscale';
+import { estimateVideoSizeNote } from './lib/quality';
+import { modeMeta } from './features/workflows/defaults';
 import {
   buildWorkflowSteps,
   buildWorkflowViewModel,
@@ -56,135 +37,69 @@ import type {
 export default function App() {
   const [runtimeInfo] = useState(() => window.mediaApi.getRuntimeInfo());
   const [activeMode, setActiveMode] = useState<WorkflowCategory>('Single');
-  const [activeSingleTab, setActiveSingleTab] = useState<SingleTabId>('sequence-to-video');
-  const [activeBatchTab, setActiveBatchTab] = useState<BatchTabId>('batch-video-to-sequence');
-  const [sequenceToVideo, setSequenceToVideo] =
-    useState<SequenceToVideoJob>(initialSequenceToVideo);
-  const [videoToSequence, setVideoToSequence] =
-    useState<VideoToSequenceJob>(initialVideoToSequence);
-  const [batchVideoToSequence, setBatchVideoToSequence] = useState<BatchVideoToSequenceJob>(
-    initialBatchVideoToSequence
-  );
-  const [batchSequenceToVideo, setBatchSequenceToVideo] = useState<BatchSequenceToVideoJob>(
-    initialBatchSequenceToVideo
-  );
-  const [singleDropNotice, setSingleDropNotice] = useState<DropNotice | null>(null);
-  const [videoToSequenceFpsTouched, setVideoToSequenceFpsTouched] = useState(false);
+  const [activeSingleTab, setActiveSingleTab] = useState<SingleTabId>('image-upscale');
+  const [activeBatchTab, setActiveBatchTab] = useState<BatchTabId>('batch-image-upscale');
   const [activity, setActivity] = useState<ActivityState>({
     running: false,
     percent: 0,
     message: 'Choose a workflow, load a source, then run the job.',
     logs: [],
   });
-  const [sequencePreviewRequestKey, setSequencePreviewRequestKey] = useState(0);
+
   const fallbackUpscaler = getDefaultUpscalerForPlatform(runtimeInfo.platform);
-  const supportedUpscalerOptions = runtimeInfo.supportedUpscalers.map((value) => {
-    switch (value) {
-      case 'realesrgan-anime-video':
-        return {
-          value,
-          label: 'Stylized - Real-ESRGAN Anime Video v3',
-        };
-      case 'realcugan':
-        return {
-          value,
-          label: 'Stylized - Real-CUGAN',
-        };
-      case 'waifu2x':
-        return {
-          value,
-          label: 'Stylized - Waifu2x',
-        };
-      case 'realsr':
-        return {
-          value,
-          label: 'General photo - RealSR',
-        };
-      case 'swinir':
-        return {
-          value,
-          label: 'General clean - SwinIR',
-        };
-      case 'dat':
-        return {
-          value,
-          label: 'General detailed - DAT',
-        };
-      case 'anime4kcpp':
-        return {
-          value,
-          label: 'Stylized - Anime4KCPP',
-        };
-      case 'xbr-js':
-        return {
-          value,
-          label: 'Pixel art only - xBR.js',
-        };
-      case 'pixel-scale-epx':
-        return {
-          value,
-          label: 'Pixel art only - EPX / Scale2x',
-        };
-      case 'nearest':
-      default:
-        return {
-          value,
-          label: 'Pixel art - Nearest neighbor',
-        };
-    }
+  const activeTab: TabId = activeMode === 'Single' ? activeSingleTab : activeBatchTab;
+  const supportedUpscalerOptions = useMemo(
+    () =>
+      getSupportedUpscalerOptions(runtimeInfo.platform).filter((option) =>
+        runtimeInfo.supportedUpscalers.includes(option.value)
+      ),
+    [runtimeInfo]
+  );
+
+  const sequenceToVideo = useSequenceToVideoWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+    previewEnabled: activeTab === 'sequence-to-video',
+  });
+  const videoToSequence = useVideoToSequenceWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const imageUpscale = useImageUpscaleWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const videoUpscale = useVideoUpscaleWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const batchVideoToSequence = useBatchVideoToSequenceWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const batchImageUpscale = useBatchImageUpscaleWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const batchVideoUpscale = useBatchVideoUpscaleWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
+  });
+  const batchSequenceToVideo = useBatchSequenceToVideoWorkflow({
+    supportedUpscalers: runtimeInfo.supportedUpscalers,
+    fallbackUpscaler,
   });
 
-  const activeTab: TabId = activeMode === 'Single' ? activeSingleTab : activeBatchTab;
   const currentWorkflow = buildWorkflowViewModel(activeTab, {
-    sequenceToVideo,
-    videoToSequence,
-    batchVideoToSequence,
-    batchSequenceToVideo,
+    sequenceToVideo: sequenceToVideo.job,
+    videoToSequence: videoToSequence.job,
+    imageUpscale: imageUpscale.job,
+    videoUpscale: videoUpscale.job,
+    batchImageUpscale: batchImageUpscale.job,
+    batchVideoUpscale: batchVideoUpscale.job,
+    batchVideoToSequence: batchVideoToSequence.job,
+    batchSequenceToVideo: batchSequenceToVideo.job,
   });
-  const sequencePreview = useSequenceSourcePreview(sequenceToVideo);
-  const {
-    preview: sequenceVideoPreview,
-    loading: sequenceVideoPreviewLoading,
-    error: sequenceVideoPreviewError,
-  } = useSequenceMotionPreview({
-    enabled: activeTab === 'sequence-to-video',
-    requestKey: sequencePreviewRequestKey,
-    sourceMode: sequenceToVideo.sourceMode,
-    sequenceFolder: sequenceToVideo.sequenceFolder,
-    imagePaths: sequenceToVideo.imagePaths,
-    fps: sequenceToVideo.fps,
-    speed: sequenceToVideo.speed,
-    resolutionMode: sequenceToVideo.resolutionMode,
-    customWidth: sequenceToVideo.customWidth,
-    customHeight: sequenceToVideo.customHeight,
-  });
-  const videoPreview = useVideoSourcePreview(videoToSequence.videoPath);
-  const pipelineOptions =
-    activeMode === 'Single'
-      ? [
-          {
-            label: 'Sequence to video',
-            active: activeSingleTab === 'sequence-to-video',
-            onClick: () => setActiveSingleTab('sequence-to-video'),
-          },
-          {
-            label: 'Video to sequence',
-            active: activeSingleTab === 'video-to-sequence',
-            onClick: () => setActiveSingleTab('video-to-sequence'),
-          },
-        ]
-      : [
-          {
-            label: 'Videos to sequences',
-            active: activeBatchTab === 'batch-video-to-sequence',
-            onClick: () => setActiveBatchTab('batch-video-to-sequence'),
-          },
-          {
-            label: 'Sequences to videos',
-            active: activeBatchTab === 'batch-sequence-to-video',
-            onClick: () => setActiveBatchTab('batch-sequence-to-video'),
-          },
-        ];
 
   const handleJobEvent = useEffectEvent((event: JobEvent) => {
     startTransition(() => {
@@ -242,263 +157,152 @@ export default function App() {
     return window.mediaApi.onJobEvent(handleJobEvent);
   }, []);
 
-  useEffect(() => {
-    setSingleDropNotice(null);
-  }, [activeTab]);
-
-  useEffect(() => {
-    setVideoToSequenceFpsTouched(false);
-  }, [videoToSequence.videoPath]);
-
-  useEffect(() => {
-    setSequenceToVideo((current) =>
-      runtimeInfo.supportedUpscalers.includes(current.upscaler)
-        ? current
-        : {
-            ...current,
-            upscaler: fallbackUpscaler,
-          }
-    );
-    setVideoToSequence((current) =>
-      runtimeInfo.supportedUpscalers.includes(current.upscaler)
-        ? current
-        : {
-            ...current,
-            upscaler: fallbackUpscaler,
-          }
-    );
-  }, [fallbackUpscaler, runtimeInfo]);
-
-  useEffect(() => {
-    if (!videoPreview?.videoPath || !videoPreview.frameRate || videoToSequenceFpsTouched) {
-      return;
-    }
-
-    const detectedFps = clampDetectedFps(videoPreview.frameRate);
-    setVideoToSequence((current) =>
-      current.videoPath === videoPreview.videoPath && current.fps !== detectedFps
-        ? {
-            ...current,
-            fps: detectedFps,
-          }
-        : current
-    );
-  }, [videoPreview, videoToSequenceFpsTouched]);
+  const pipelineOptions =
+    activeMode === 'Single'
+      ? [
+          {
+            label: 'Images upscale',
+            active: activeSingleTab === 'image-upscale',
+            onClick: () => setActiveSingleTab('image-upscale'),
+          },
+          {
+            label: 'Videos upscale',
+            active: activeSingleTab === 'video-upscale',
+            onClick: () => setActiveSingleTab('video-upscale'),
+          },
+          {
+            label: 'Sequence to video',
+            active: activeSingleTab === 'sequence-to-video',
+            onClick: () => setActiveSingleTab('sequence-to-video'),
+          },
+          {
+            label: 'Video to sequence',
+            active: activeSingleTab === 'video-to-sequence',
+            onClick: () => setActiveSingleTab('video-to-sequence'),
+          },
+        ]
+      : [
+          {
+            label: 'Images upscale',
+            active: activeBatchTab === 'batch-image-upscale',
+            onClick: () => setActiveBatchTab('batch-image-upscale'),
+          },
+          {
+            label: 'Videos upscale',
+            active: activeBatchTab === 'batch-video-upscale',
+            onClick: () => setActiveBatchTab('batch-video-upscale'),
+          },
+          {
+            label: 'Sequences to videos',
+            active: activeBatchTab === 'batch-sequence-to-video',
+            onClick: () => setActiveBatchTab('batch-sequence-to-video'),
+          },
+          {
+            label: 'Videos to sequences',
+            active: activeBatchTab === 'batch-video-to-sequence',
+            onClick: () => setActiveBatchTab('batch-video-to-sequence'),
+          },
+        ];
 
   const canGenerateSequencePreview =
     currentWorkflow.validation.sourceReady &&
     currentWorkflow.validation.parametersReady &&
     activeTab === 'sequence-to-video';
 
-  async function pickSequenceFolder(): Promise<void> {
-    const folder = await window.mediaApi.pickFolder();
-    if (!folder) {
+  const singleDropNotice =
+    activeTab === 'sequence-to-video'
+      ? sequenceToVideo.dropNotice
+      : activeTab === 'video-to-sequence'
+        ? videoToSequence.dropNotice
+        : activeTab === 'image-upscale'
+          ? imageUpscale.dropNotice
+          : activeTab === 'video-upscale'
+            ? videoUpscale.dropNotice
+            : null;
+
+  const topHelperText = getTopHelperText(activeTab, currentWorkflow.validation, activity);
+  const topHelperTone = getTopHelperTone(currentWorkflow.validation, activity);
+  const progressSteps = buildWorkflowSteps(currentWorkflow.validation, activity);
+  const primaryActionHint = getPrimaryActionHint(currentWorkflow, activity);
+  const primaryActionHintTone = getPrimaryActionHintTone(currentWorkflow.validation, activity);
+  const sequenceSizeEstimate =
+    activeTab === 'sequence-to-video'
+      ? estimateVideoSizeNote(
+          sequenceToVideo.preview,
+          sequenceToVideo.job.fps,
+          sequenceToVideo.job.speed,
+          sequenceToVideo.job.format,
+          sequenceToVideo.job.quality,
+          resolveResolution(sequenceToVideo.job, sequenceToVideo.preview ?? {}, {
+            enforceEven: true,
+          }),
+          sequenceToVideo.job.upscaleMode
+        )
+      : activeTab === 'video-upscale' && videoUpscale.preview?.frameRate
+        ? estimateVideoSizeNote(
+            {
+              firstFramePath: videoUpscale.job.videoPath ?? '',
+              frameCount: Math.max(
+                1,
+                Math.round((videoUpscale.preview.durationSeconds ?? 0) * videoUpscale.preview.frameRate)
+              ),
+              width: videoUpscale.preview.width,
+              height: videoUpscale.preview.height,
+              hasAlpha: videoUpscale.preview.hasAlpha,
+            },
+            videoUpscale.preview.frameRate,
+            1,
+            videoUpscale.job.format,
+            videoUpscale.job.quality,
+            resolveResolution(videoUpscale.job, videoUpscale.preview ?? {}, { enforceEven: true }),
+            videoUpscale.job.upscaleMode
+          )
+        : null;
+  const sourceBadgeLabel = getSourceBadgeLabel(activeTab, {
+    sequenceToVideo: sequenceToVideo.job,
+    videoToSequence: videoToSequence.job,
+    imageUpscale: imageUpscale.job,
+    videoUpscale: videoUpscale.job,
+    batchVideoToSequence: batchVideoToSequence.job,
+    batchImageUpscale: batchImageUpscale.job,
+    batchVideoUpscale: batchVideoUpscale.job,
+    batchSequenceToVideo: batchSequenceToVideo.job,
+    sequencePreview: sequenceToVideo.preview,
+    videoPreview: activeTab === 'video-upscale' ? videoUpscale.preview : videoToSequence.preview,
+  });
+  const sourceHelperText = getSourceHelperText(activeTab, currentWorkflow.validation);
+  const displayTopHelperText = topHelperText === sourceHelperText ? '' : topHelperText;
+  const footerStatus = getFooterStatus(activity);
+
+  function generateSequencePreview(): void {
+    if (!canGenerateSequencePreview || sequenceToVideo.motionPreview.loading) {
       return;
     }
 
-    setSingleDropNotice(null);
-    setSequenceToVideo((current) => ({
-      ...current,
-      sourceMode: 'folder',
-      sequenceFolder: folder,
-      imagePaths: [],
-    }));
+    sequenceToVideo.requestMotionPreview();
   }
 
-  async function pickSequenceImages(): Promise<void> {
-    const imagePaths = await window.mediaApi.pickImageFiles();
-    if (imagePaths.length === 0) {
-      return;
+  async function pickBatchOutputRoot(
+    kind:
+      | 'batch-video-to-sequence'
+      | 'batch-sequence-to-video'
+      | 'batch-image-upscale'
+      | 'batch-video-upscale'
+  ): Promise<void> {
+    switch (kind) {
+      case 'batch-video-to-sequence':
+        await batchVideoToSequence.pickOutputRoot();
+        return;
+      case 'batch-image-upscale':
+        await batchImageUpscale.pickOutputRoot();
+        return;
+      case 'batch-video-upscale':
+        await batchVideoUpscale.pickOutputRoot();
+        return;
+      case 'batch-sequence-to-video':
+      default:
+        await batchSequenceToVideo.pickOutputRoot();
     }
-
-    setSingleDropNotice(null);
-    setSequenceToVideo((current) => ({
-      ...current,
-      sourceMode: 'images',
-      imagePaths,
-      sequenceFolder: '',
-    }));
-  }
-
-  async function pickSingleVideo(): Promise<void> {
-    const videoPaths = await window.mediaApi.pickVideoFiles();
-    if (videoPaths.length === 0) {
-      return;
-    }
-
-    setSingleDropNotice(null);
-    setVideoToSequence((current) => ({
-      ...current,
-      videoPath: videoPaths[0],
-    }));
-  }
-
-  async function pickOutputVideo(): Promise<void> {
-    const defaultName = sequenceToVideo.outputPath?.trim()
-      ? replacePathExtension(sequenceToVideo.outputPath, sequenceToVideo.format)
-      : buildSuggestedVideoName(
-          sequenceToVideo.sourceMode === 'folder'
-            ? sequenceToVideo.sequenceFolder
-            : sequenceToVideo.imagePaths?.[0],
-          sequenceToVideo.format
-        );
-    const filePath = await window.mediaApi.saveVideoFile(defaultName, sequenceToVideo.format);
-    if (!filePath) {
-      return;
-    }
-
-    setSequenceToVideo((current) => ({
-      ...current,
-      outputPath: filePath,
-    }));
-  }
-
-  async function pickSingleOutputFolder(): Promise<void> {
-    const folder = await window.mediaApi.pickFolder();
-    if (!folder) {
-      return;
-    }
-
-    setVideoToSequence((current) => ({
-      ...current,
-      outputDir: folder,
-    }));
-  }
-
-  async function pickBatchVideoFiles(): Promise<void> {
-    const videoPaths = await window.mediaApi.pickVideoFiles();
-    if (videoPaths.length === 0) {
-      return;
-    }
-
-    setBatchVideoToSequence((current) => ({
-      ...current,
-      sourceMode: 'files',
-      videoPaths,
-      scanRoot: '',
-    }));
-  }
-
-  async function pickBatchVideoScanRoot(): Promise<void> {
-    const folder = await window.mediaApi.pickFolder();
-    if (!folder) {
-      return;
-    }
-
-    setBatchVideoToSequence((current) => ({
-      ...current,
-      sourceMode: 'scan-root',
-      scanRoot: folder,
-    }));
-  }
-
-  async function pickBatchSequenceFolders(): Promise<void> {
-    const sequenceFolders = await window.mediaApi.pickSequenceFolders();
-    if (sequenceFolders.length === 0) {
-      return;
-    }
-
-    setBatchSequenceToVideo((current) => ({
-      ...current,
-      sourceMode: 'folders',
-      sequenceFolders,
-      scanRoot: '',
-    }));
-  }
-
-  async function pickBatchSequenceScanRoot(): Promise<void> {
-    const folder = await window.mediaApi.pickFolder();
-    if (!folder) {
-      return;
-    }
-
-    setBatchSequenceToVideo((current) => ({
-      ...current,
-      sourceMode: 'scan-root',
-      scanRoot: folder,
-    }));
-  }
-
-  async function pickBatchOutputRoot(kind: 'videos' | 'sequences'): Promise<void> {
-    const folder = await window.mediaApi.pickFolder();
-    if (!folder) {
-      return;
-    }
-
-    if (kind === 'videos') {
-      setBatchVideoToSequence((current) => ({
-        ...current,
-        outputRoot: folder,
-      }));
-      return;
-    }
-
-    setBatchSequenceToVideo((current) => ({
-      ...current,
-      outputRoot: folder,
-    }));
-  }
-
-  async function handleSequenceSourceDrop(dataTransfer: DataTransfer): Promise<void> {
-    const dropped = await extractDroppedPayload(dataTransfer);
-    const imagePaths = dropped.paths.filter(isImagePath);
-
-    if (imagePaths.length === 0) {
-      setSingleDropNotice({
-        tone: 'error',
-        text: 'Drop one sequence folder or one or more supported image files.',
-      });
-      return;
-    }
-
-    const sortedPaths = sortNaturalPaths(imagePaths);
-    const uniqueParents = [...new Set(sortedPaths.map(getParentDirectory))];
-
-    if (dropped.containsDirectory && uniqueParents.length === 1) {
-      setSingleDropNotice(null);
-      setSequenceToVideo((current) => ({
-        ...current,
-        sourceMode: 'folder',
-        sequenceFolder: uniqueParents[0],
-        imagePaths: [],
-      }));
-      return;
-    }
-
-    setSingleDropNotice(null);
-    setSequenceToVideo((current) => ({
-      ...current,
-      sourceMode: 'images',
-      imagePaths: sortedPaths,
-      sequenceFolder: '',
-    }));
-  }
-
-  async function handleVideoSourceDrop(dataTransfer: DataTransfer): Promise<void> {
-    const dropped = await extractDroppedPayload(dataTransfer);
-    const videoPaths = sortNaturalPaths(dropped.paths.filter(isVideoPath));
-
-    if (dropped.containsDirectory) {
-      setSingleDropNotice({
-        tone: 'error',
-        text: 'Drop one video file here, not a folder.',
-      });
-      return;
-    }
-
-    if (videoPaths.length !== 1) {
-      setSingleDropNotice({
-        tone: 'error',
-        text: 'Drop exactly one supported video file.',
-      });
-      return;
-    }
-
-    setSingleDropNotice(null);
-    setVideoToSequence((current) => ({
-      ...current,
-      videoPath: videoPaths[0],
-    }));
   }
 
   async function runCurrentJob(): Promise<void> {
@@ -527,43 +331,6 @@ export default function App() {
         logs: [...current.logs, `[error] ${message}`],
       }));
     }
-  }
-
-  const topHelperText = getTopHelperText(activeTab, currentWorkflow.validation, activity);
-  const topHelperTone = getTopHelperTone(currentWorkflow.validation, activity);
-  const progressSteps = buildWorkflowSteps(currentWorkflow.validation, activity);
-  const primaryActionHint = getPrimaryActionHint(currentWorkflow, activity);
-  const primaryActionHintTone = getPrimaryActionHintTone(currentWorkflow.validation, activity);
-  const sequenceSizeEstimate =
-    activeTab === 'sequence-to-video'
-      ? estimateVideoSizeNote(
-          sequencePreview,
-          sequenceToVideo.fps,
-          sequenceToVideo.speed,
-          sequenceToVideo.format,
-          sequenceToVideo.quality,
-          resolveResolution(sequenceToVideo, sequencePreview ?? {}, { enforceEven: true }),
-          sequenceToVideo.upscaleMode
-        )
-      : null;
-  const sourceBadgeLabel = getSourceBadgeLabel(activeTab, {
-    sequenceToVideo,
-    videoToSequence,
-    batchVideoToSequence,
-    batchSequenceToVideo,
-    sequencePreview,
-    videoPreview,
-  });
-  const sourceHelperText = getSourceHelperText(activeTab, currentWorkflow.validation);
-  const displayTopHelperText = topHelperText === sourceHelperText ? '' : topHelperText;
-  const footerStatus = getFooterStatus(activity);
-
-  function generateSequencePreview(): void {
-    if (!canGenerateSequencePreview || sequenceVideoPreviewLoading) {
-      return;
-    }
-
-    setSequencePreviewRequestKey((current) => current + 1);
   }
 
   return (
@@ -616,31 +383,49 @@ export default function App() {
                     helper={sourceHelperText}
                     sourceReady={currentWorkflow.validation.sourceReady}
                     singleDropNotice={singleDropNotice}
-                    sequenceToVideo={sequenceToVideo}
-                    setSequenceToVideo={setSequenceToVideo}
-                    sequencePreview={sequencePreview}
-                    sequenceVideoPreview={sequenceVideoPreview}
-                    sequenceVideoPreviewLoading={sequenceVideoPreviewLoading}
-                    sequenceVideoPreviewError={sequenceVideoPreviewError}
+                    sequenceToVideo={sequenceToVideo.job}
+                    setSequenceToVideo={sequenceToVideo.setJob}
+                    sequencePreview={sequenceToVideo.preview}
+                    sequenceVideoPreview={sequenceToVideo.motionPreview.preview}
+                    sequenceVideoPreviewLoading={sequenceToVideo.motionPreview.loading}
+                    sequenceVideoPreviewError={sequenceToVideo.motionPreview.error}
                     canGenerateSequencePreview={canGenerateSequencePreview}
-                    videoToSequence={videoToSequence}
-                    setVideoToSequence={setVideoToSequence}
-                    videoPreview={videoPreview}
-                    batchVideoToSequence={batchVideoToSequence}
-                    setBatchVideoToSequence={setBatchVideoToSequence}
-                    batchSequenceToVideo={batchSequenceToVideo}
-                    setBatchSequenceToVideo={setBatchSequenceToVideo}
+                    videoToSequence={videoToSequence.job}
+                    setVideoToSequence={videoToSequence.setJob}
+                    videoPreview={videoToSequence.preview}
+                    imageUpscale={imageUpscale.job}
+                    setImageUpscale={imageUpscale.setJob}
+                    imageUpscalePreview={imageUpscale.preview}
+                    videoUpscale={videoUpscale.job}
+                    setVideoUpscale={videoUpscale.setJob}
+                    videoUpscalePreview={videoUpscale.preview}
+                    batchVideoToSequence={batchVideoToSequence.job}
+                    setBatchVideoToSequence={batchVideoToSequence.setJob}
+                    batchImageUpscale={batchImageUpscale.job}
+                    setBatchImageUpscale={batchImageUpscale.setJob}
+                    batchVideoUpscale={batchVideoUpscale.job}
+                    setBatchVideoUpscale={batchVideoUpscale.setJob}
+                    batchSequenceToVideo={batchSequenceToVideo.job}
+                    setBatchSequenceToVideo={batchSequenceToVideo.setJob}
                     actions={{
-                      pickSequenceFolder,
-                      pickSequenceImages,
-                      pickSingleVideo,
-                      pickBatchVideoFiles,
-                      pickBatchVideoScanRoot,
-                      pickBatchSequenceFolders,
-                      pickBatchSequenceScanRoot,
+                      pickSequenceFolder: sequenceToVideo.pickSequenceFolder,
+                      pickSequenceImages: sequenceToVideo.pickSequenceImages,
+                      pickSingleVideo: videoToSequence.pickSingleVideo,
+                      pickImageUpscaleImages: imageUpscale.pickImages,
+                      pickVideoUpscaleVideo: videoUpscale.pickVideo,
+                      pickBatchVideoFiles: batchVideoToSequence.pickVideoFiles,
+                      pickBatchVideoScanRoot: batchVideoToSequence.pickScanRoot,
+                      pickBatchImageFiles: batchImageUpscale.pickImageFiles,
+                      pickBatchImageScanRoot: batchImageUpscale.pickScanRoot,
+                      pickBatchVideoUpscaleFiles: batchVideoUpscale.pickVideoFiles,
+                      pickBatchVideoUpscaleScanRoot: batchVideoUpscale.pickScanRoot,
+                      pickBatchSequenceFolders: batchSequenceToVideo.pickSequenceFolders,
+                      pickBatchSequenceScanRoot: batchSequenceToVideo.pickScanRoot,
                       generateSequencePreview,
-                      handleSequenceSourceDrop,
-                      handleVideoSourceDrop,
+                      handleSequenceSourceDrop: sequenceToVideo.handleSourceDrop,
+                      handleVideoSourceDrop: videoToSequence.handleSourceDrop,
+                      handleImageUpscaleDrop: imageUpscale.handleSourceDrop,
+                      handleVideoUpscaleDrop: videoUpscale.handleSourceDrop,
                     }}
                   />
                 </div>
@@ -650,7 +435,7 @@ export default function App() {
 
           <aside className="min-h-0 overflow-y-auto border-t border-white/8 bg-[#141418] xl:border-l xl:border-t-0">
             <div className="p-3">
-              <section className="app-surface space-y-4 p-4">
+              <section className="app-surface relative overflow-visible space-y-4 p-4">
                 <div className="space-y-1">
                   <h2 className="text-sm font-semibold text-white">Parameters</h2>
                   <p className="text-sm text-slate-400">{currentWorkflow.meta.strap}</p>
@@ -659,22 +444,34 @@ export default function App() {
                 <div className="space-y-3">
                   <WorkflowParameterFields
                     activeTab={activeTab}
-                    sequenceToVideo={sequenceToVideo}
-                    setSequenceToVideo={setSequenceToVideo}
-                    videoToSequence={videoToSequence}
-                    setVideoToSequence={setVideoToSequence}
-                    onVideoToSequenceFpsInput={() => setVideoToSequenceFpsTouched(true)}
-                    batchVideoToSequence={batchVideoToSequence}
-                    setBatchVideoToSequence={setBatchVideoToSequence}
-                    batchSequenceToVideo={batchSequenceToVideo}
-                    setBatchSequenceToVideo={setBatchSequenceToVideo}
+                    sequenceToVideo={sequenceToVideo.job}
+                    setSequenceToVideo={sequenceToVideo.setJob}
+                    videoToSequence={videoToSequence.job}
+                    setVideoToSequence={videoToSequence.setJob}
+                    imageUpscale={imageUpscale.job}
+                    setImageUpscale={imageUpscale.setJob}
+                    videoUpscale={videoUpscale.job}
+                    setVideoUpscale={videoUpscale.setJob}
+                    onVideoToSequenceFpsInput={() => videoToSequence.setFpsTouched(true)}
+                    batchVideoToSequence={batchVideoToSequence.job}
+                    setBatchVideoToSequence={batchVideoToSequence.setJob}
+                    batchImageUpscale={batchImageUpscale.job}
+                    setBatchImageUpscale={batchImageUpscale.setJob}
+                    batchVideoUpscale={batchVideoUpscale.job}
+                    setBatchVideoUpscale={batchVideoUpscale.setJob}
+                    batchSequenceToVideo={batchSequenceToVideo.job}
+                    setBatchSequenceToVideo={batchSequenceToVideo.setJob}
                     upscalerOptions={supportedUpscalerOptions}
-                    sequencePreview={sequencePreview}
-                    videoPreview={videoPreview}
+                    sequencePreview={sequenceToVideo.preview}
+                    imageUpscalePreview={imageUpscale.preview}
+                    videoPreview={videoToSequence.preview}
+                    videoUpscalePreview={videoUpscale.preview}
                     sequenceSizeEstimate={sequenceSizeEstimate}
                     actions={{
-                      pickOutputVideo,
-                      pickSingleOutputFolder,
+                      pickOutputVideo: sequenceToVideo.pickOutputVideo,
+                      pickSingleOutputFolder: videoToSequence.pickOutputFolder,
+                      pickImageUpscaleOutputFolder: imageUpscale.pickOutputFolder,
+                      pickVideoUpscaleOutput: videoUpscale.pickOutputVideo,
                       pickBatchOutputRoot,
                     }}
                   />
@@ -737,9 +534,4 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-function clampDetectedFps(value: number): number {
-  const rounded = Math.round(value * 1000) / 1000;
-  return Math.min(RATE_LIMITS.fps.max, Math.max(RATE_LIMITS.fps.min, rounded));
 }

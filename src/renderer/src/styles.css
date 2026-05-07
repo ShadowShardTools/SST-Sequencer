@@ -21,12 +21,23 @@ body {
   margin: 0;
   min-height: 100vh;
   background: #1a1a1f;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button,
 input,
 select {
   font: inherit;
+}
+
+input,
+textarea,
+select,
+option,
+.mono {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 input[type='range'] {
@@ -155,6 +166,67 @@ select:focus-visible {
 
 .secondary-button:focus-visible {
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.info-tip-trigger {
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.info-tip-trigger:hover,
+.info-tip-group:focus-within .info-tip-trigger {
+  border-color: rgba(127, 176, 255, 0.35);
+  background: rgba(37, 99, 235, 0.14);
+  color: #bfdbfe;
+}
+
+.info-tip-trigger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+.info-tip-bubble {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  width: min(280px, calc(100vw - 48px));
+  padding: 10px 12px;
+  border: 1px solid rgba(127, 176, 255, 0.24);
+  border-radius: 10px;
+  background: #11131a;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  color: #cdd9e8;
+  font-size: 12px;
+  line-height: 1.55;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.info-tip-bubble::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: -6px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid rgba(127, 176, 255, 0.24);
+  border-left: 1px solid rgba(127, 176, 255, 0.24);
+  background: #11131a;
+  transform: rotate(45deg);
+}
+
+.info-tip-group:hover .info-tip-bubble,
+.info-tip-group:focus-within .info-tip-bubble {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .mono {

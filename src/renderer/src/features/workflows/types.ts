@@ -1,21 +1,33 @@
 import type {
+  BatchImageUpscaleJob,
   BatchSequenceToVideoJob,
   BatchVideoToSequenceJob,
+  BatchVideoUpscaleJob,
+  ImageUpscaleJob,
   JobRequest,
   JobSummary,
   SequenceToVideoJob,
+  VideoUpscaleJob,
   VideoToSequenceJob,
 } from '../../../../shared/jobs';
 
 export type TabId =
   | 'sequence-to-video'
   | 'video-to-sequence'
+  | 'image-upscale'
+  | 'video-upscale'
+  | 'batch-image-upscale'
+  | 'batch-video-upscale'
   | 'batch-video-to-sequence'
   | 'batch-sequence-to-video';
 
 export type WorkflowCategory = 'Single' | 'Batch';
-export type SingleTabId = 'sequence-to-video' | 'video-to-sequence';
-export type BatchTabId = 'batch-video-to-sequence' | 'batch-sequence-to-video';
+export type SingleTabId = 'sequence-to-video' | 'video-to-sequence' | 'image-upscale' | 'video-upscale';
+export type BatchTabId =
+  | 'batch-video-to-sequence'
+  | 'batch-sequence-to-video'
+  | 'batch-image-upscale'
+  | 'batch-video-upscale';
 
 export type ActivityState = {
   running: boolean;
@@ -56,6 +68,10 @@ export type WorkflowViewModel = {
 export type WorkflowJobsState = {
   sequenceToVideo: SequenceToVideoJob;
   videoToSequence: VideoToSequenceJob;
+  imageUpscale: ImageUpscaleJob;
+  videoUpscale: VideoUpscaleJob;
+  batchImageUpscale: BatchImageUpscaleJob;
+  batchVideoUpscale: BatchVideoUpscaleJob;
   batchVideoToSequence: BatchVideoToSequenceJob;
   batchSequenceToVideo: BatchSequenceToVideoJob;
 };

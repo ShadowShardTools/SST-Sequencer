@@ -9,7 +9,7 @@ import {
 } from './png-rgba';
 import type { JobEmitter } from './types';
 
-const PIXEL_SCALE_EPX_SCALES = [2, 3, 4] as const;
+const PIXEL_SCALE_EPX_SCALES = [2, 3, 4, 6, 8] as const;
 
 export async function upscaleImageDirectory(options: {
   inputDir: string;
@@ -60,11 +60,23 @@ function upscaleFrameWithPixelScaleEpx(
             preparedFrame.width,
             preparedFrame.height
           )
-        : pixelScaleEpx.upscaleRgba4x(
-            preparedFrame.data,
-            preparedFrame.width,
-            preparedFrame.height
-          );
+        : scale === 4
+          ? pixelScaleEpx.upscaleRgba4x(
+              preparedFrame.data,
+              preparedFrame.width,
+              preparedFrame.height
+            )
+          : scale === 6
+            ? pixelScaleEpx.upscaleRgba6x(
+                preparedFrame.data,
+                preparedFrame.width,
+                preparedFrame.height
+              )
+            : pixelScaleEpx.upscaleRgba8x(
+                preparedFrame.data,
+                preparedFrame.width,
+                preparedFrame.height
+              );
 
   if (preserveAlpha) {
     const outputWidth = preparedFrame.width * scale;
@@ -88,6 +100,17 @@ function upscaleFrameWithPixelScaleEpxAntialias(frame: RgbaFrame, scale: number)
   if (scale === 2) {
     return new Uint8Array(
       pixelScaleEpx.expandAndAntiAliasRgba2x(frame.data, frame.width, frame.height)
+    );
+  }
+
+  if (scale === 6 || scale === 8) {
+    const antialiasedInput = new Uint8Array(
+      pixelScaleEpx.expandAndAntiAliasRgba2x(frame.data, frame.width, frame.height)
+    );
+    return new Uint8Array(
+      scale === 6
+        ? pixelScaleEpx.upscaleRgba3x(antialiasedInput, frame.width * 2, frame.height * 2)
+        : pixelScaleEpx.upscaleRgba4x(antialiasedInput, frame.width * 2, frame.height * 2)
     );
   }
 
