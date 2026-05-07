@@ -1,5 +1,5 @@
-import { spawn } from 'node:child_process';
 import { ensureBinaryAvailable, ffmpegBinary } from './binaries';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 export type FfmpegRunOptions = {
@@ -13,7 +13,7 @@ export async function runFfmpeg(options: FfmpegRunOptions): Promise<void> {
   await ensureBinaryAvailable(ffmpegBinary, 'FFmpeg');
 
   return new Promise((resolve, reject) => {
-    const child = spawn(ffmpegBinary, options.args, {
+    const child = spawnManaged(ffmpegBinary, options.args, {
       windowsHide: true,
     });
 

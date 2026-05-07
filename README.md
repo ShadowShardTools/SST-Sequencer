@@ -1,17 +1,38 @@
 # SST Sequencer
 
-Desktop Electron app for building videos from image sequences and extracting image sequences from videos, with optional AI upscaling.
+Desktop Electron app for converting between image sequences and videos, upscaling images or videos, and optionally removing backgrounds before export.
 <img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/4f8f0af2-3f18-4d21-98ab-b1200c401b3f" />
 
 ## What It Does
 
 - Convert a single image sequence into video
 - Extract a single video into an image sequence
-- Batch-convert many video files into image sequences
-- Batch-convert many sequence folders into videos
-- Resize single workflows before export
-- Upscale single and batch workflows with native, JS, or Python-backed upscalers
+- Upscale a single image set directly
+- Upscale a single video directly
+- Batch-extract many videos into image sequences
+- Batch-encode many sequence folders into videos
+- Batch-upscale many image files
+- Batch-upscale many videos
+- Resize before export
+- Upscale with native, JS, or Python-backed upscalers
+- Remove backgrounds with bundled `rembg`
 - Preserve alpha when the selected format and pipeline support it
+
+## Workflows
+
+### Single
+
+- `Image Upscale`
+- `Video Upscale`
+- `Sequence to Video`
+- `Video to Sequence`
+
+### Batch
+
+- `Batch Image Upscale`
+- `Batch Video Upscale`
+- `Batch Videos to Sequences`
+- `Batch Sequences to Videos`
 
 ## Supported Formats
 
@@ -43,6 +64,31 @@ Desktop Electron app for building videos from image sequences and extracting ima
 - common video files handled by FFmpeg
 - `GIF`
 - `APNG`
+
+## Background Removal
+
+Background removal is available as a parameter in the transform workflows. It runs before upscale/export on source images or prepared frames.
+
+Currently exposed models:
+
+- `BiRefNet General`
+- `BiRefNet General Lite`
+- `BiRefNet Portrait`
+- `U2Net`
+- `U2NetP`
+- `U2Net Human`
+- `ISNet General Use`
+- `ISNet Anime`
+
+### Runtime split
+
+- Bundled `rembg` CLI:
+  - CPU
+  - GPU on supported NVIDIA systems
+- Fallback:
+  - Python `3.11` runtime path if the CLI is unavailable
+
+AMD systems currently fall back to CPU for `rembg`.
 
 ## Upscalers
 
@@ -100,6 +146,7 @@ Single and batch workflows support:
 - npm
 
 FFmpeg and FFprobe are bundled through `ffmpeg-static` and `ffprobe-static`.
+The app also bundles native upscaler assets and the `rembg` CLI through `postinstall`.
 
 ### Optional Python backends
 
@@ -146,12 +193,22 @@ If `py -3.11` is not available, use a Python 3.11 interpreter through `python` o
 - `npm run setup:swinir` downloads SwinIR architecture and weights
 - `npm run setup:dat` downloads DAT architecture and weights
 - `npm run setup:anime4kcpp` installs bundled Anime4KCPP assets
+- `npm run setup:rembg` installs bundled `rembg` CLI assets
 
 ## Notes
 
 - `Anime4KCPP` is currently only bundled on Windows.
 - `SwinIR` and `DAT` are Python 3.11 backends, so packaging the desktop app does not embed a Python runtime.
 - `xBR.js` and `pixel-scale-epx` are pixel-art-focused upscalers. They are not intended for painted, antialiased, or photo-like images.
+- `rembg` GPU acceleration currently targets supported NVIDIA systems. Other systems fall back to CPU.
+
+## UX Notes
+
+- `Ctrl+V` paste for clipboard images is supported in:
+  - `Sequence to Video`
+  - `Image Upscale`
+  - `Batch Image Upscale`
+- Running jobs can be cancelled from the right-side action button while work is in progress.
 
 ## Project Layout
 
@@ -174,6 +231,7 @@ src/
 ## Architecture Notes
 
 - `main` owns filesystem, ffmpeg, ffprobe, dialogs, and IPC registration.
+- `main/jobs/` owns workflow execution.
 - `preload` is the only bridge between renderer and main.
 - `renderer` owns workflow state, UI composition, and client-side validation.
 - `shared` is the single source of truth for contracts and format metadata.
@@ -185,7 +243,7 @@ src/
 
 1. Start in `src/renderer/src/features/workflows/`.
 2. Keep shared controls in `src/renderer/src/components/`.
-3. Keep workflow-specific validation in `features/workflows/model.ts`.
+3. Keep workflow-specific validation in `features/workflows/workflow-validation.ts`.
 
 ### Add or change a media format
 
@@ -195,11 +253,11 @@ src/
 
 ### Add or change an upscaler
 
-1. Update `src/shared/formats.ts`.
+1. Update `src/shared/upscalers/registry.ts`.
 2. Add or update the backend under `src/main/media/`.
-3. Wire it into `src/main/media-service.ts`.
+3. Wire it into the relevant job or pipeline layer under `src/main/jobs/` or `src/main/media/pipelines/`.
 4. Add or update the installer under `scripts/` if the backend needs bundled assets.
-5. Update renderer labels and notes in `src/renderer/src/App.tsx` and `src/renderer/src/lib/media.ts`.
+5. Update tests for shared registry, validation, and pipeline/job behavior.
 
 ## Quality Gate
 

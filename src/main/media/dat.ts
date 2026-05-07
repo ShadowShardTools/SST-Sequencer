@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -10,6 +9,7 @@ import {
   resolveDatVendorDir,
 } from './binaries';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 const DAT_SCALES = [2, 3, 4] as const;
@@ -196,7 +196,7 @@ async function ensureDatDependencies(python: PythonCommand): Promise<void> {
 
 async function runDat(python: PythonCommand, args: string[], emitter: JobEmitter): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(python.command, [...python.argsPrefix, ...args], {
+    const child = spawnManaged(python.command, [...python.argsPrefix, ...args], {
       windowsHide: true,
     });
 
@@ -240,7 +240,7 @@ async function runDat(python: PythonCommand, args: string[], emitter: JobEmitter
 
 async function runProcess(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawnManaged(command, args, {
       windowsHide: true,
       stdio: 'ignore',
     });

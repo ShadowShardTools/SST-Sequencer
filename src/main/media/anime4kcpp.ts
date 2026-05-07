@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
 import { mkdir, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import type { AlphaMode, Anime4kcppModel } from '../../shared/formats';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
 import { ensureBinaryAvailable, resolveAnime4kcppBinary } from './binaries';
 import { getImageFilesFromFolder } from './discovery';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 const ANIME4KCPP_SCALES = [2, 3, 4] as const;
@@ -138,7 +138,7 @@ async function detectAnime4kcppProcessor(binaryPath: string): Promise<Anime4kcpp
 
 async function queryAnime4kcpp(binaryPath: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args, {
+    const child = spawnManaged(binaryPath, args, {
       windowsHide: true,
     });
 
@@ -178,7 +178,7 @@ async function runAnime4kcpp(
   emitter: JobEmitter
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args, {
+    const child = spawnManaged(binaryPath, args, {
       windowsHide: true,
     });
 

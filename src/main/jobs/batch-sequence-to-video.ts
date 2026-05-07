@@ -8,6 +8,7 @@ import { prepareSequenceFramesForOutput } from '../media/pipelines/upscale-seque
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateRateSettings,
   validateResolutionSetting,
@@ -28,6 +29,7 @@ export async function runBatchSequenceToVideoJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const sequenceFolders =
@@ -64,6 +66,8 @@ export async function runBatchSequenceToVideoJob(
         upscaleMode: request.upscaleMode,
         upscalerConfig: request.upscalerConfig,
         alphaMode: request.alphaMode,
+        backgroundRemove: request.backgroundRemove,
+        backgroundRemoveModel: request.backgroundRemoveModel,
         emitter,
         logLabel: label,
       });

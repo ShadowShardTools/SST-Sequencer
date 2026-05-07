@@ -16,6 +16,15 @@ export type VideoFormat =
   | 'gif-palette';
 
 export type ImageFormat = 'png' | 'jpg' | 'webp' | 'bmp' | 'tiff' | 'tga';
+export type BackgroundRemoveModel =
+  | 'birefnet-general'
+  | 'birefnet-general-lite'
+  | 'birefnet-portrait'
+  | 'u2net'
+  | 'u2netp'
+  | 'u2net_human_seg'
+  | 'isnet-general-use'
+  | 'isnet-anime';
 export type SequenceInputMode = 'folder' | 'images';
 export type BatchOutputMode = 'for-each' | 'custom-root';
 export type BatchVideoSourceMode = 'files' | 'scan-root';
@@ -69,6 +78,17 @@ export const IMAGE_FORMAT_OPTIONS: ReadonlyArray<SelectOption<ImageFormat>> = [
   { value: 'bmp', label: 'BMP' },
   { value: 'tiff', label: 'TIFF' },
   { value: 'tga', label: 'TGA' },
+];
+
+export const BACKGROUND_REMOVE_MODEL_OPTIONS: ReadonlyArray<SelectOption<BackgroundRemoveModel>> = [
+  { value: 'birefnet-general', label: 'BiRefNet General' },
+  { value: 'birefnet-general-lite', label: 'BiRefNet General Lite (faster)' },
+  { value: 'birefnet-portrait', label: 'BiRefNet Portrait' },
+  { value: 'u2net', label: 'U2Net' },
+  { value: 'u2netp', label: 'U2NetP (lightweight)' },
+  { value: 'u2net_human_seg', label: 'U2Net Human' },
+  { value: 'isnet-general-use', label: 'ISNet General Use' },
+  { value: 'isnet-anime', label: 'ISNet Anime' },
 ];
 
 export const VIDEO_OUTPUT_EXTENSIONS = ['mp4', 'mov', 'mkv', 'webm', 'gif', 'apng'] as const;
@@ -154,6 +174,10 @@ export function imageFormatSupportsAlpha(format: ImageFormat): boolean {
 
 export function videoFormatSupportsAlpha(format: VideoFormat): boolean {
   return format === 'apng' || format === 'prores4444';
+}
+
+export function isValidBackgroundRemoveModel(value: string): value is BackgroundRemoveModel {
+  return BACKGROUND_REMOVE_MODEL_OPTIONS.some((option) => option.value === value);
 }
 
 function stripKnownVideoOutputExtensions(filePath: string): string {

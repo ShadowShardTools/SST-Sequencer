@@ -17,6 +17,13 @@ import { runImageUpscaleJob } from './jobs/image-upscale';
 import { runSequenceToVideoJob } from './jobs/sequence-to-video';
 import { runVideoToSequenceJob } from './jobs/video-to-sequence';
 import { runVideoUpscaleJob } from './jobs/video-upscale';
+import {
+  cancelJobRuntime,
+  createJobRuntime,
+  isJobCancelledError,
+  runWithJobRuntime,
+  type JobRuntime,
+} from './media/job-runtime';
 import type { JobEmitter } from './media/types';
 
 export {
@@ -26,6 +33,7 @@ export {
 } from './media/previews';
 
 const JOB_EVENT_CHANNEL = 'jobs:event';
+const activeJobs = new Map<string, { runtime: JobRuntime; emitter: JobEmitter }>();
 
 export async function runMediaJob(
   sender: Electron.WebContents,
@@ -33,10 +41,12 @@ export async function runMediaJob(
 ): Promise<JobResult> {
   const jobId = randomUUID();
   const emitter = createEmitter(sender, jobId);
-  emitter.started(getStartMessage(request));
+  const runtime = createJobRuntime(jobId);
+  activeJobs.set(jobId, { runtime, emitter });
 
   try {
-    const summary = await executeJob(request, emitter);
+    emitter.started(getStartMessage(request));
+    const summary = await runWithJobRuntime(runtime, () => executeJob(request, emitter));
     const success = summary.failed === 0;
     emitter.finished(success, summary.headline, summary);
 
@@ -46,6 +56,24 @@ export async function runMediaJob(
       summary,
     };
   } catch (error) {
+    if (runtime.cancelled || isJobCancelledError(error)) {
+      const summary: JobSummary = {
+        headline: 'Job cancelled.',
+        outputs: [],
+        completed: 0,
+        failed: 0,
+        failures: [],
+      };
+
+      emitter.finished(false, summary.headline, summary);
+
+      return {
+        jobId,
+        success: false,
+        summary,
+      };
+    }
+
     const message = getErrorMessage(error);
     const summary: JobSummary = {
       headline: message,
@@ -68,7 +96,20 @@ export async function runMediaJob(
       success: false,
       summary,
     };
+  } finally {
+    activeJobs.delete(jobId);
   }
+}
+
+export async function cancelMediaJob(jobId: string): Promise<boolean> {
+  const activeJob = activeJobs.get(jobId);
+  if (!activeJob) {
+    return false;
+  }
+
+  activeJob.emitter.log('Cancellation requested.');
+  await cancelJobRuntime(activeJob.runtime);
+  return true;
 }
 
 async function executeJob(request: JobRequest, emitter: JobEmitter): Promise<JobSummary> {

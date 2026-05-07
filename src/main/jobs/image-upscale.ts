@@ -9,8 +9,10 @@ import { resolveImageResizeTarget } from '../media/resize';
 import { dedupeAndSort, getImageFilesFromFolder } from '../media/discovery';
 import { resolveImageUpscaleDirectory, resolveImageUpscaleOutputPath } from '../media/outputs';
 import type { JobEmitter } from '../media/types';
+import { removeBackgroundImage } from '../media/background-remover';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateResolutionSetting,
   validateUpscaleMode,
@@ -36,6 +38,7 @@ export async function runImageUpscaleJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const imagePaths = dedupeAndSort(request.imagePaths ?? []);
@@ -55,14 +58,15 @@ export async function runImageUpscaleJob(
     const outputPath = await resolveImageUpscaleOutputPath(outputDir, imagePath, request.format);
     const mediaInfo = await probeMediaInfo(imagePath);
     const resize = await resolveImageResizeTarget(request, imagePath);
-    const preserveAlpha = Boolean(mediaInfo.hasAlpha);
+    const preserveAlpha = request.backgroundRemove || Boolean(mediaInfo.hasAlpha);
     let tempBaseDir = '';
+    let tempBackgroundRemovedDir = '';
     let tempUpscaledDir = '';
 
     try {
       emitter.log(`Starting ${label} (${currentIndex}/${imagePaths.length}).`);
 
-      if (upscaleFactor <= 1) {
+      if (upscaleFactor <= 1 && !request.backgroundRemove) {
         await convertStillImage({
           inputPath: imagePath,
           outputPath,
@@ -71,7 +75,7 @@ export async function runImageUpscaleJob(
           resize,
           emitter,
         });
-      } else if (upscaler === 'nearest') {
+      } else if (upscaler === 'nearest' && !request.backgroundRemove) {
         const nearestResize = resolveUpscaledResize(
           resize,
           mediaInfo.width,
@@ -89,7 +93,6 @@ export async function runImageUpscaleJob(
         });
       } else {
         tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-image-upscale-base-'));
-        tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-image-upscale-out-'));
         const baseImagePath = join(tempBaseDir, 'input.png');
 
         await convertStillImage({
@@ -101,29 +104,69 @@ export async function runImageUpscaleJob(
           emitter,
         });
 
-        await upscaleFrameDirectory({
-          upscalerConfig: request.upscalerConfig,
-          inputDir: tempBaseDir,
-          outputDir: tempUpscaledDir,
-          scale: upscaleFactor,
-          preserveAlpha,
-          alphaMode: request.alphaMode,
-          emitter,
-        });
-
-        const upscaledPaths = await getImageFilesFromFolder(tempUpscaledDir);
-        const upscaledPath = upscaledPaths[0];
-        if (!upscaledPath) {
-          throw new Error('The upscaler did not produce an output image.');
+        let preparedInputPath = baseImagePath;
+        if (request.backgroundRemove) {
+          tempBackgroundRemovedDir = await mkdtemp(join(tmpdir(), 'sst-image-upscale-bg-remove-'));
+          preparedInputPath = join(tempBackgroundRemovedDir, 'input.png');
+          await removeBackgroundImage({
+            inputPath: baseImagePath,
+            outputPath: preparedInputPath,
+            model: request.backgroundRemoveModel,
+            emitter,
+          });
         }
 
-        await convertStillImage({
-          inputPath: upscaledPath,
-          outputPath,
-          format: request.format,
-          quality: request.quality,
-          emitter,
-        });
+        if (upscaleFactor <= 1) {
+          await convertStillImage({
+            inputPath: preparedInputPath,
+            outputPath,
+            format: request.format,
+            quality: request.quality,
+            emitter,
+          });
+        } else if (upscaler === 'nearest') {
+          const nearestResize = resolveUpscaledResize(
+            resize,
+            mediaInfo.width,
+            mediaInfo.height,
+            upscaleFactor
+          );
+
+          await convertStillImage({
+            inputPath: preparedInputPath,
+            outputPath,
+            format: request.format,
+            quality: request.quality,
+            resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
+            emitter,
+          });
+        } else {
+          tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-image-upscale-out-'));
+
+          await upscaleFrameDirectory({
+            upscalerConfig: request.upscalerConfig,
+            inputDir: request.backgroundRemove ? tempBackgroundRemovedDir : tempBaseDir,
+            outputDir: tempUpscaledDir,
+            scale: upscaleFactor,
+            preserveAlpha,
+            alphaMode: request.alphaMode,
+            emitter,
+          });
+
+          const upscaledPaths = await getImageFilesFromFolder(tempUpscaledDir);
+          const upscaledPath = upscaledPaths[0];
+          if (!upscaledPath) {
+            throw new Error('The upscaler did not produce an output image.');
+          }
+
+          await convertStillImage({
+            inputPath: upscaledPath,
+            outputPath,
+            format: request.format,
+            quality: request.quality,
+            emitter,
+          });
+        }
       }
 
       outputs.push(outputPath);
@@ -144,7 +187,9 @@ export async function runImageUpscaleJob(
       });
       emitter.log(`Failed ${label}: ${reason}`, 'error');
     } finally {
-      await removeTemporaryDirectories(tempBaseDir, tempUpscaledDir);
+      await removeTemporaryDirectories(
+        ...[tempBaseDir, tempBackgroundRemovedDir, tempUpscaledDir].filter(Boolean)
+      );
     }
   }
 

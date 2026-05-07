@@ -27,7 +27,7 @@ const naturalCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
 });
-const APP_GENERATED_DIRECTORY_NAMES = new Set(['upscaled_images']);
+const APP_GENERATED_DIRECTORY_NAMES = new Set(['upscaled_images', 'background_removed']);
 const APP_GENERATED_DIRECTORY_SUFFIXES = ['_sequence'];
 const APP_GENERATED_VIDEO_SUFFIXES = ['_upscaled'];
 

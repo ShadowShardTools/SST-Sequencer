@@ -12,7 +12,12 @@ import {
   type UpscalerConfig,
   type UpscalerType,
 } from '../../shared/upscalers/registry';
-import { isValidFps, isValidQuality, isValidSpeed } from '../../shared/formats';
+import {
+  isValidBackgroundRemoveModel,
+  isValidFps,
+  isValidQuality,
+  isValidSpeed,
+} from '../../shared/formats';
 import { isValidResolutionSettings, type ResolutionSettings } from '../../shared/resolution';
 
 export function validateRateSettings(fps: number, speed: number): void {
@@ -67,6 +72,12 @@ export function validateUpscalerType(upscaler: UpscalerType): void {
 export function validateAlphaMode(alphaMode: AlphaMode): void {
   if (!isValidAlphaMode(alphaMode)) {
     throw new Error(`Alpha mode is invalid: ${getAlphaModeLabel(alphaMode)}.`);
+  }
+}
+
+export function validateBackgroundRemoveModel(model: string): void {
+  if (!isValidBackgroundRemoveModel(model)) {
+    throw new Error('Background remover model is invalid.');
   }
 }
 

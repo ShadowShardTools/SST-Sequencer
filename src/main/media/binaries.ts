@@ -93,6 +93,10 @@ export function resolveAnime4kcppBinary(): string {
   return resolveBundledExecutable('anime4kcpp', 'ac_cli');
 }
 
+export function resolveRembgBinary(variant: 'cpu' | 'gpu' = 'cpu'): string {
+  return resolveBundledExecutable(join('rembg', variant), 'rembg');
+}
+
 function resolveBundledExecutable(resourceFolder: string, executableBaseName: string): string {
   const executableName =
     process.platform === 'win32' ? `${executableBaseName}.exe` : executableBaseName;

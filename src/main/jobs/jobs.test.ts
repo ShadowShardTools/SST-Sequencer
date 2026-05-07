@@ -92,6 +92,11 @@ function createEmitter(): JobEmitter {
   };
 }
 
+const backgroundRemoveDefaults = {
+  backgroundRemove: false,
+  backgroundRemoveModel: 'u2net' as const,
+};
+
 function createSequenceToVideoJob(): SequenceToVideoJob {
   return {
     kind: 'sequence-to-video',
@@ -102,6 +107,7 @@ function createSequenceToVideoJob(): SequenceToVideoJob {
     fps: 24,
     speed: 1,
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,
@@ -125,6 +131,7 @@ function createBatchVideoToSequenceJob(): BatchVideoToSequenceJob {
     fps: 24,
     speed: 1,
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,
@@ -147,6 +154,7 @@ function createBatchImageUpscaleJob(): BatchImageUpscaleJob {
     outputMode: 'for-each',
     outputRoot: '',
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,
@@ -167,6 +175,7 @@ function createBatchVideoUpscaleJob(): BatchVideoUpscaleJob {
     outputMode: 'for-each',
     outputRoot: '',
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,
@@ -189,6 +198,7 @@ function createBatchSequenceToVideoJob(): BatchSequenceToVideoJob {
     fps: 24,
     speed: 1,
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,
@@ -205,6 +215,7 @@ function createVideoUpscaleJob(): VideoUpscaleJob {
     videoPath: 'D:\\clip.mov',
     outputPath: '',
     quality: 100,
+    ...backgroundRemoveDefaults,
     resolutionMode: 'source',
     customWidth: 1920,
     customHeight: 1080,

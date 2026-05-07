@@ -1,4 +1,12 @@
-import { QUALITY_LIMITS, IMAGE_FORMAT_OPTIONS, VIDEO_FORMAT_OPTIONS, type ImageFormat, type VideoFormat } from '../../../../../shared/formats';
+import {
+  BACKGROUND_REMOVE_MODEL_OPTIONS,
+  QUALITY_LIMITS,
+  IMAGE_FORMAT_OPTIONS,
+  VIDEO_FORMAT_OPTIONS,
+  type BackgroundRemoveModel,
+  type ImageFormat,
+  type VideoFormat,
+} from '../../../../../shared/formats';
 import { InspectorFieldRow, SelectField, SliderField } from '../../../components/fields';
 import { getImageAdjustmentUi, getVideoQualityNote } from '../../../lib/quality';
 
@@ -81,5 +89,56 @@ export function ImageFormatField(props: {
         onChange={(value) => props.onChange(value as ImageFormat)}
       />
     </InspectorFieldRow>
+  );
+}
+
+type BackgroundRemoveState = {
+  backgroundRemove: boolean;
+  backgroundRemoveModel: BackgroundRemoveModel;
+};
+
+export function BackgroundRemoveField<T extends BackgroundRemoveState>(props: {
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <>
+      <InspectorFieldRow
+        label="Background remove"
+        note="Run AI cutout on the source image or prepared frames before upscale and export. Use an alpha-capable output format if you want transparent results."
+      >
+        <SelectField
+          value={props.value.backgroundRemove ? 'enabled' : 'disabled'}
+          options={[
+            { value: 'disabled', label: 'Disabled' },
+            { value: 'enabled', label: 'Enabled' },
+          ]}
+          onChange={(value) =>
+            props.onChange({
+              ...props.value,
+              backgroundRemove: value === 'enabled',
+            })
+          }
+        />
+      </InspectorFieldRow>
+
+      {props.value.backgroundRemove && (
+        <InspectorFieldRow
+          label="Cutout model"
+          note="Choose the segmentation model used by the AI background remover."
+        >
+          <SelectField
+            value={props.value.backgroundRemoveModel}
+            options={BACKGROUND_REMOVE_MODEL_OPTIONS}
+            onChange={(value) =>
+              props.onChange({
+                ...props.value,
+                backgroundRemoveModel: value as BackgroundRemoveModel,
+              })
+            }
+          />
+        </InspectorFieldRow>
+      )}
+    </>
   );
 }

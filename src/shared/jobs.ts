@@ -1,5 +1,6 @@
 import type {
   AlphaMode,
+  BackgroundRemoveModel,
   BatchOutputMode,
   BatchImageSourceMode,
   BatchSequenceSourceMode,
@@ -18,13 +19,21 @@ type UpscaleSettings = {
   upscalerConfig: UpscalerConfig;
 };
 
+type BackgroundRemoveSettings = {
+  backgroundRemove: boolean;
+  backgroundRemoveModel: BackgroundRemoveModel;
+};
+
 type ResolutionSettings = {
   resolutionMode: ResolutionMode;
   customWidth?: number;
   customHeight?: number;
 };
 
-export interface SequenceToVideoJob extends UpscaleSettings, ResolutionSettings {
+export interface SequenceToVideoJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'sequence-to-video';
   sourceMode: SequenceInputMode;
   sequenceFolder?: string;
@@ -36,7 +45,10 @@ export interface SequenceToVideoJob extends UpscaleSettings, ResolutionSettings 
   format: VideoFormat;
 }
 
-export interface VideoToSequenceJob extends UpscaleSettings, ResolutionSettings {
+export interface VideoToSequenceJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'video-to-sequence';
   videoPath?: string;
   outputDir?: string;
@@ -48,7 +60,10 @@ export interface VideoToSequenceJob extends UpscaleSettings, ResolutionSettings 
   startNumber: number;
 }
 
-export interface ImageUpscaleJob extends UpscaleSettings, ResolutionSettings {
+export interface ImageUpscaleJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'image-upscale';
   imagePaths?: string[];
   outputDir?: string;
@@ -56,7 +71,10 @@ export interface ImageUpscaleJob extends UpscaleSettings, ResolutionSettings {
   format: ImageFormat;
 }
 
-export interface VideoUpscaleJob extends UpscaleSettings, ResolutionSettings {
+export interface VideoUpscaleJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'video-upscale';
   videoPath?: string;
   outputPath?: string;
@@ -64,7 +82,10 @@ export interface VideoUpscaleJob extends UpscaleSettings, ResolutionSettings {
   format: VideoFormat;
 }
 
-export interface BatchImageUpscaleJob extends UpscaleSettings, ResolutionSettings {
+export interface BatchImageUpscaleJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'batch-image-upscale';
   sourceMode: BatchImageSourceMode;
   imagePaths?: string[];
@@ -76,7 +97,10 @@ export interface BatchImageUpscaleJob extends UpscaleSettings, ResolutionSetting
   format: ImageFormat;
 }
 
-export interface BatchVideoUpscaleJob extends UpscaleSettings, ResolutionSettings {
+export interface BatchVideoUpscaleJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'batch-video-upscale';
   sourceMode: BatchVideoSourceMode;
   videoPaths?: string[];
@@ -88,7 +112,10 @@ export interface BatchVideoUpscaleJob extends UpscaleSettings, ResolutionSetting
   format: VideoFormat;
 }
 
-export interface BatchVideoToSequenceJob extends UpscaleSettings, ResolutionSettings {
+export interface BatchVideoToSequenceJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'batch-video-to-sequence';
   sourceMode: BatchVideoSourceMode;
   videoPaths?: string[];
@@ -105,7 +132,10 @@ export interface BatchVideoToSequenceJob extends UpscaleSettings, ResolutionSett
   startNumber: number;
 }
 
-export interface BatchSequenceToVideoJob extends UpscaleSettings, ResolutionSettings {
+export interface BatchSequenceToVideoJob
+  extends UpscaleSettings,
+    BackgroundRemoveSettings,
+    ResolutionSettings {
   kind: 'batch-sequence-to-video';
   sourceMode: BatchSequenceSourceMode;
   sequenceFolders?: string[];

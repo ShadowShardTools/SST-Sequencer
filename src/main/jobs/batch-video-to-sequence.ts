@@ -7,6 +7,7 @@ import { createImageSequenceFromVideoWithUpscale } from '../media/pipelines/upsc
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateFpsSetting,
   validateQualitySetting,
   validateResolutionSetting,
@@ -33,6 +34,7 @@ export async function runBatchVideoToSequenceJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
   if (request.overrideFps) {
     validateFpsSetting(request.fps);
@@ -77,6 +79,8 @@ export async function runBatchVideoToSequenceJob(
         upscaleMode: request.upscaleMode,
         upscalerConfig: request.upscalerConfig,
         alphaMode: request.alphaMode,
+        backgroundRemove: request.backgroundRemove,
+        backgroundRemoveModel: request.backgroundRemoveModel,
         emitter,
         onExtractProgress: (percent) =>
           emitter.progress(

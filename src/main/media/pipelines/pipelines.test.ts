@@ -90,6 +90,11 @@ function createEmitter(): JobEmitter {
   };
 }
 
+const backgroundRemoveDefaults = {
+  backgroundRemove: false,
+  backgroundRemoveModel: 'u2net' as const,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -161,6 +166,7 @@ describe('media pipelines', () => {
       upscaleMode: '2x',
       upscalerConfig: { kind: 'realcugan', variant: 'denoise' },
       alphaMode: 'premultiplied',
+      ...backgroundRemoveDefaults,
       emitter,
       logLabel: 'test-sequence',
     });
@@ -220,6 +226,7 @@ describe('media pipelines', () => {
       upscaleMode: '2x',
       upscalerConfig: { kind: 'nearest' },
       alphaMode: 'auto',
+      ...backgroundRemoveDefaults,
       emitter,
     });
 
@@ -272,6 +279,7 @@ describe('media pipelines', () => {
       upscaleMode: '2x',
       upscalerConfig: { kind: 'realcugan', variant: 'conservative' },
       alphaMode: 'straight',
+      ...backgroundRemoveDefaults,
       emitter,
     });
 

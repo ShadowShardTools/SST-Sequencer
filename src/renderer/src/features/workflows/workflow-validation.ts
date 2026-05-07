@@ -6,7 +6,12 @@ import {
   isValidUpscalerType,
   type UpscalerConfig,
 } from '../../../../shared/upscalers/registry';
-import { isValidFps, isValidQuality, isValidSpeed } from '../../../../shared/formats';
+import {
+  isValidBackgroundRemoveModel,
+  isValidFps,
+  isValidQuality,
+  isValidSpeed,
+} from '../../../../shared/formats';
 import { isValidResolutionSettings } from '../../../../shared/resolution';
 import type { TabId, ValidationState, WorkflowJobsState } from './types';
 
@@ -45,6 +50,7 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode);
   const alphaReady = isValidAlphaMode(job.alphaMode);
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidFps(job.fps) &&
     isValidSpeed(job.speed) &&
@@ -53,7 +59,8 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
     upscalerReady &&
     upscaleReady &&
     alphaReady &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -82,6 +89,7 @@ function validateSequenceToVideo(job: WorkflowJobsState['sequenceToVideo']): Val
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
   return {
     ready: blocking.length === 0,
     blocking,
@@ -103,6 +111,7 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode);
   const alphaReady = isValidAlphaMode(job.alphaMode);
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
   const parametersReady =
@@ -114,7 +123,8 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
     alphaReady &&
     prefixReady &&
     numberingReady &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -149,6 +159,7 @@ function validateVideoToSequence(job: WorkflowJobsState['videoToSequence']): Val
     blocking.push('Set a start number of 0 or higher.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
 
   return {
     ready: blocking.length === 0,
@@ -175,6 +186,7 @@ function validateBatchVideoToSequence(
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode);
   const alphaReady = isValidAlphaMode(job.alphaMode);
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const rateReady = fpsReady && speedReady;
   const prefixReady = Boolean(job.prefix.trim());
   const numberingReady = Number.isFinite(job.startNumber) && job.startNumber >= 0;
@@ -187,7 +199,8 @@ function validateBatchVideoToSequence(
     alphaReady &&
     prefixReady &&
     numberingReady &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -226,6 +239,7 @@ function validateBatchVideoToSequence(
     blocking.push('Set a start number of 0 or higher.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');
   }
@@ -246,6 +260,7 @@ function validateBatchImageUpscale(
     job.sourceMode === 'files' ? (job.imagePaths?.length ?? 0) > 0 : Boolean(job.scanRoot?.trim());
   const upscaler = job.upscalerConfig.kind;
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidQuality(job.quality) &&
     isValidResolutionSettings(job) &&
@@ -253,7 +268,8 @@ function validateBatchImageUpscale(
     isValidUpscaleMode(job.upscaleMode) &&
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode) &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -283,6 +299,7 @@ function validateBatchImageUpscale(
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');
   }
@@ -303,6 +320,7 @@ function validateBatchVideoUpscale(
     job.sourceMode === 'files' ? (job.videoPaths?.length ?? 0) > 0 : Boolean(job.scanRoot?.trim());
   const upscaler = job.upscalerConfig.kind;
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidQuality(job.quality) &&
     isValidResolutionSettings(job) &&
@@ -310,7 +328,8 @@ function validateBatchVideoUpscale(
     isValidUpscaleMode(job.upscaleMode) &&
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode) &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -340,6 +359,7 @@ function validateBatchVideoUpscale(
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');
   }
@@ -357,6 +377,7 @@ function validateImageUpscale(job: WorkflowJobsState['imageUpscale']): Validatio
   const sourceReady = (job.imagePaths?.length ?? 0) > 0;
   const upscaler = job.upscalerConfig.kind;
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidQuality(job.quality) &&
     isValidResolutionSettings(job) &&
@@ -364,7 +385,8 @@ function validateImageUpscale(job: WorkflowJobsState['imageUpscale']): Validatio
     isValidUpscaleMode(job.upscaleMode) &&
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode) &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -390,6 +412,7 @@ function validateImageUpscale(job: WorkflowJobsState['imageUpscale']): Validatio
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
 
   return {
     ready: blocking.length === 0,
@@ -404,6 +427,7 @@ function validateVideoUpscale(job: WorkflowJobsState['videoUpscale']): Validatio
   const sourceReady = Boolean(job.videoPath?.trim());
   const upscaler = job.upscalerConfig.kind;
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidQuality(job.quality) &&
     isValidResolutionSettings(job) &&
@@ -411,7 +435,8 @@ function validateVideoUpscale(job: WorkflowJobsState['videoUpscale']): Validatio
     isValidUpscaleMode(job.upscaleMode) &&
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode) &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = true;
   const blocking: string[] = [];
 
@@ -437,6 +462,7 @@ function validateVideoUpscale(job: WorkflowJobsState['videoUpscale']): Validatio
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
 
   return {
     ready: blocking.length === 0,
@@ -456,6 +482,7 @@ function validateBatchSequenceToVideo(
       : Boolean(job.scanRoot?.trim());
   const upscaler = job.upscalerConfig.kind;
   const configBlocking = getUpscalerConfigBlocking(job);
+  const backgroundRemoveBlocking = getBackgroundRemoveBlocking(job);
   const parametersReady =
     isValidFps(job.fps) &&
     isValidSpeed(job.speed) &&
@@ -465,7 +492,8 @@ function validateBatchSequenceToVideo(
     isValidUpscaleMode(job.upscaleMode) &&
     isUpscaleModeSupportedByUpscaler(upscaler, job.upscaleMode) &&
     isValidAlphaMode(job.alphaMode) &&
-    configBlocking.length === 0;
+    configBlocking.length === 0 &&
+    backgroundRemoveBlocking.length === 0;
   const outputReady = job.outputMode === 'for-each' || Boolean(job.outputRoot?.trim());
   const blocking: string[] = [];
 
@@ -501,6 +529,7 @@ function validateBatchSequenceToVideo(
     blocking.push('Choose a valid alpha mode.');
   }
   blocking.push(...configBlocking);
+  blocking.push(...backgroundRemoveBlocking);
   if (!outputReady) {
     blocking.push('Choose an export folder for selected export path.');
   }
@@ -518,7 +547,22 @@ type UpscalerConfigState = {
   upscalerConfig: UpscalerConfig;
 };
 
+type BackgroundRemoveState = {
+  backgroundRemove: boolean;
+  backgroundRemoveModel: string;
+};
+
 function getUpscalerConfigBlocking(job: UpscalerConfigState): string[] {
   const validationError = getUpscalerConfigValidationError(job.upscalerConfig);
   return validationError ? [validationError] : [];
+}
+
+function getBackgroundRemoveBlocking(job: BackgroundRemoveState): string[] {
+  if (!job.backgroundRemove) {
+    return [];
+  }
+
+  return isValidBackgroundRemoveModel(job.backgroundRemoveModel)
+    ? []
+    : ['Choose a valid background remover model.'];
 }

@@ -22,9 +22,12 @@ const api: MediaApi = {
   inspectVideoSource: (videoPath: string) => ipcRenderer.invoke('source:inspect-video', videoPath),
   loadImagePreview: (filePath: string) => ipcRenderer.invoke('preview:image-data-url', filePath),
   loadVideoPreview: (filePath: string) => ipcRenderer.invoke('preview:video-data-url', filePath),
+  savePastedImage: (input: { data: Uint8Array; mimeType: string }) =>
+    ipcRenderer.invoke('clipboard:save-image', input),
   getPathForDroppedFile: (file: File) => webUtils.getPathForFile(file),
   revealPath: (targetPath: string) => ipcRenderer.invoke('paths:reveal', targetPath),
   runJob: (request: JobRequest) => ipcRenderer.invoke('jobs:run', request),
+  cancelJob: (jobId: string) => ipcRenderer.invoke('jobs:cancel', jobId),
   onJobEvent: (listener: (event: JobEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: JobEvent) => {
       listener(payload);

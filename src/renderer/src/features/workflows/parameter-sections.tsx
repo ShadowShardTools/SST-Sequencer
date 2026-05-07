@@ -13,7 +13,13 @@ import type {
 import type { SequenceSourcePreview, VideoSourcePreview } from '../../../../shared/previews';
 import { replacePathExtension } from '../../lib/path-utils';
 import { getResolutionControlUi } from '../../lib/resolution-ui';
-import { ImageAdjustmentField, ImageFormatField, VideoFormatField, VideoQualityField } from './sections/format-fields';
+import {
+  BackgroundRemoveField,
+  ImageAdjustmentField,
+  ImageFormatField,
+  VideoFormatField,
+  VideoQualityField,
+} from './sections/format-fields';
 import { BatchOutputField, FileOutputField } from './sections/output-fields';
 import { ResolutionField } from './sections/resolution-fields';
 import { FpsField, OverrideFpsModeField, PrefixField, SpeedField, StartNumberField } from './sections/timing-fields';
@@ -138,6 +144,10 @@ export function WorkflowParameterFields(props: {
               }))
             }
           />
+          <BackgroundRemoveField
+            value={props.sequenceToVideo}
+            onChange={(value) => props.setSequenceToVideo(value)}
+          />
           <ResolutionField
             settings={props.sequenceToVideo}
             setSettings={props.setSequenceToVideo}
@@ -211,6 +221,10 @@ export function WorkflowParameterFields(props: {
               }))
             }
           />
+          <BackgroundRemoveField
+            value={props.videoToSequence}
+            onChange={(value) => props.setVideoToSequence(value)}
+          />
           <ResolutionField
             settings={props.videoToSequence}
             setSettings={props.setVideoToSequence}
@@ -281,6 +295,10 @@ export function WorkflowParameterFields(props: {
               }))
             }
           />
+          <BackgroundRemoveField
+            value={props.imageUpscale}
+            onChange={(value) => props.setImageUpscale(value)}
+          />
           <ResolutionField
             settings={props.imageUpscale}
             setSettings={props.setImageUpscale}
@@ -331,6 +349,10 @@ export function WorkflowParameterFields(props: {
                 quality: value,
               }))
             }
+          />
+          <BackgroundRemoveField
+            value={props.videoUpscale}
+            onChange={(value) => props.setVideoUpscale(value)}
           />
           <ResolutionField
             settings={props.videoUpscale}
@@ -410,6 +432,10 @@ export function WorkflowParameterFields(props: {
               }))
             }
           />
+          <BackgroundRemoveField
+            value={props.batchVideoToSequence}
+            onChange={(value) => props.setBatchVideoToSequence(value)}
+          />
           <ResolutionField
             settings={props.batchVideoToSequence}
             setSettings={props.setBatchVideoToSequence}
@@ -486,6 +512,10 @@ export function WorkflowParameterFields(props: {
               }))
             }
           />
+          <BackgroundRemoveField
+            value={props.batchImageUpscale}
+            onChange={(value) => props.setBatchImageUpscale(value)}
+          />
           <ResolutionField
             settings={props.batchImageUpscale}
             setSettings={props.setBatchImageUpscale}
@@ -542,6 +572,10 @@ export function WorkflowParameterFields(props: {
                 quality: value,
               }))
             }
+          />
+          <BackgroundRemoveField
+            value={props.batchVideoUpscale}
+            onChange={(value) => props.setBatchVideoUpscale(value)}
           />
           <ResolutionField
             settings={props.batchVideoUpscale}
@@ -616,6 +650,10 @@ export function WorkflowParameterFields(props: {
                 format: value,
               }))
             }
+          />
+          <BackgroundRemoveField
+            value={props.batchSequenceToVideo}
+            onChange={(value) => props.setBatchSequenceToVideo(value)}
           />
           <ResolutionField
             settings={props.batchSequenceToVideo}

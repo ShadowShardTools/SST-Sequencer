@@ -7,6 +7,7 @@ import { prepareSequenceFramesForOutput } from '../media/pipelines/upscale-seque
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateRateSettings,
   validateResolutionSetting,
@@ -26,6 +27,7 @@ export async function runSequenceToVideoJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const sourceImagePaths = await resolveSequenceInput(request);
@@ -43,6 +45,8 @@ export async function runSequenceToVideoJob(
     upscaleMode: request.upscaleMode,
     upscalerConfig: request.upscalerConfig,
     alphaMode: request.alphaMode,
+    backgroundRemove: request.backgroundRemove,
+    backgroundRemoveModel: request.backgroundRemoveModel,
     emitter,
   });
 

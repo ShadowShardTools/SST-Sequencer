@@ -33,8 +33,10 @@ export interface MediaApi {
   inspectVideoSource(videoPath: string): Promise<VideoSourcePreview | null>;
   loadImagePreview(filePath: string): Promise<string | null>;
   loadVideoPreview(filePath: string): Promise<string | null>;
+  savePastedImage(input: { data: Uint8Array; mimeType: string }): Promise<string | null>;
   getPathForDroppedFile(file: File): string;
   revealPath(targetPath: string): Promise<void>;
   runJob(request: JobRequest): Promise<JobResult>;
+  cancelJob(jobId: string): Promise<boolean>;
   onJobEvent(listener: (event: JobEvent) => void): () => void;
 }

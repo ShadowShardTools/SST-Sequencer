@@ -8,6 +8,7 @@ import { extractVideoFramesForVideoUpscale } from '../media/pipelines/upscale-vi
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateResolutionSetting,
   validateUpscaleMode,
@@ -25,6 +26,7 @@ export async function runVideoUpscaleJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const videoPath = request.videoPath?.trim();
@@ -51,6 +53,8 @@ export async function runVideoUpscaleJob(
     upscaleMode: request.upscaleMode,
     upscalerConfig: request.upscalerConfig,
     alphaMode: request.alphaMode,
+    backgroundRemove: request.backgroundRemove,
+    backgroundRemoveModel: request.backgroundRemoveModel,
     emitter,
     onExtractProgress: (percent) =>
       emitter.progress(percent * 0.5, `Extracting ${basename(videoPath)}`, {

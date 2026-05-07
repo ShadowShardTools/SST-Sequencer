@@ -1,4 +1,12 @@
-import { useState, type DragEvent, type ReactNode } from 'react';
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
 import type { BatchOutputMode, SelectOption } from '../../../shared/formats';
 import { clampToRange, roundToStep, trimNumber } from '../lib/numeric';
 import { FolderIcon, InfoIcon, VideoIcon } from './icons';
@@ -136,7 +144,7 @@ export function PathPicker(props: {
 
 export function InspectorFieldRow(props: { label: string; note?: string; children: ReactNode }) {
   return (
-    <div className="space-y-2 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
+    <div className="inspector-field-row relative space-y-2 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
       {props.label && (
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold text-white">{props.label}</div>
@@ -149,18 +157,96 @@ export function InspectorFieldRow(props: { label: string; note?: string; childre
 }
 
 function InfoTip(props: { text: string }) {
+  const tooltipId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [layout, setLayout] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placement: 'above' | 'below';
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      return;
+    }
+
+    const updatePosition = (): void => {
+      if (!triggerRef.current) {
+        return;
+      }
+
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - 24);
+      const bubbleHeight = bubbleRef.current?.offsetHeight ?? 0;
+      const left = clampToRange(
+        triggerRect.left + triggerRect.width / 2 - width / 2,
+        12,
+        window.innerWidth - width - 12
+      );
+      const belowTop = triggerRect.bottom + 10;
+      const aboveTop = triggerRect.top - bubbleHeight - 10;
+      const placement =
+        bubbleHeight > 0 && belowTop + bubbleHeight > window.innerHeight - 12 && aboveTop >= 12
+          ? 'above'
+          : 'below';
+
+      setLayout({
+        top: placement === 'above' ? aboveTop : belowTop,
+        left,
+        width,
+        placement,
+      });
+    };
+
+    updatePosition();
+    const frame = window.requestAnimationFrame(updatePosition);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
+
   return (
-    <div className="info-tip-group relative">
+    <div className="info-tip-group">
       <button
+        ref={triggerRef}
         type="button"
         className="info-tip-trigger flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-slate-400"
         aria-label="Show parameter details"
+        aria-describedby={open ? tooltipId : undefined}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
       >
         <InfoIcon />
       </button>
-      <div className="info-tip-bubble" role="tooltip">
-        {props.text}
-      </div>
+      {open &&
+        layout &&
+        createPortal(
+          <div
+            ref={bubbleRef}
+            id={tooltipId}
+            className="info-tip-bubble"
+            data-placement={layout.placement}
+            role="tooltip"
+            style={{
+              top: `${layout.top}px`,
+              left: `${layout.left}px`,
+              width: `${layout.width}px`,
+            }}
+          >
+            {props.text}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

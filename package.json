@@ -1,10 +1,10 @@
 {
   "name": "sst-sequencer",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Electron desktop app for building videos from image sequences and extracting image sequences from videos.",
   "main": "main.cjs",
   "scripts": {
-    "postinstall": "node scripts/setup-realesrgan.mjs && node scripts/setup-realcugan.mjs && node scripts/setup-waifu2x.mjs && node scripts/setup-realsr.mjs && node scripts/setup-swinir.mjs && node scripts/setup-dat.mjs && node scripts/setup-anime4kcpp.mjs",
+    "postinstall": "node scripts/setup-realesrgan.mjs && node scripts/setup-realcugan.mjs && node scripts/setup-waifu2x.mjs && node scripts/setup-realsr.mjs && node scripts/setup-swinir.mjs && node scripts/setup-dat.mjs && node scripts/setup-anime4kcpp.mjs && node scripts/setup-rembg.mjs",
     "setup:realesrgan": "node scripts/setup-realesrgan.mjs",
     "setup:realcugan": "node scripts/setup-realcugan.mjs",
     "setup:waifu2x": "node scripts/setup-waifu2x.mjs",
@@ -12,6 +12,7 @@
     "setup:swinir": "node scripts/setup-swinir.mjs",
     "setup:dat": "node scripts/setup-dat.mjs",
     "setup:anime4kcpp": "node scripts/setup-anime4kcpp.mjs",
+    "setup:rembg": "node scripts/setup-rembg.mjs",
     "dev": "node scripts/run-electron-vite.mjs dev",
     "build": "tsc --noEmit && node scripts/run-electron-vite.mjs build",
     "preview": "node scripts/run-electron-vite.mjs preview",
@@ -97,6 +98,10 @@
       {
         "from": "vendor/anime4kcpp",
         "to": "anime4kcpp"
+      },
+      {
+        "from": "vendor/rembg",
+        "to": "rembg"
       }
     ],
     "win": {

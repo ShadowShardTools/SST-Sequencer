@@ -1,11 +1,11 @@
-import { spawn } from 'node:child_process';
 import { ensureBinaryAvailable, ffprobeBinary } from './binaries';
+import { spawnManaged } from './job-runtime';
 
 export async function probeVideoDuration(videoPath: string): Promise<number> {
   await ensureBinaryAvailable(ffprobeBinary, 'FFprobe');
 
   return new Promise((resolve, reject) => {
-    const child = spawn(
+    const child = spawnManaged(
       ffprobeBinary,
       [
         '-v',
@@ -62,7 +62,7 @@ export async function probeMediaInfo(targetPath: string): Promise<{
   await ensureBinaryAvailable(ffprobeBinary, 'FFprobe');
 
   return new Promise((resolve, reject) => {
-    const child = spawn(
+    const child = spawnManaged(
       ffprobeBinary,
       [
         '-v',

@@ -6,6 +6,7 @@ import { createImageSequenceFromVideoWithUpscale } from '../media/pipelines/upsc
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateRateSettings,
   validateResolutionSetting,
@@ -25,6 +26,7 @@ export async function runVideoToSequenceJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const videoPath = request.videoPath?.trim();
@@ -48,6 +50,8 @@ export async function runVideoToSequenceJob(
     upscaleMode: request.upscaleMode,
     upscalerConfig: request.upscalerConfig,
     alphaMode: request.alphaMode,
+    backgroundRemove: request.backgroundRemove,
+    backgroundRemoveModel: request.backgroundRemoveModel,
     emitter,
     onExtractProgress: (percent) =>
       emitter.progress(percent, `Extracting ${basename(videoPath)}`, {

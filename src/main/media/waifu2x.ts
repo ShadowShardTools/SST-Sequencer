@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -7,6 +6,7 @@ import { ensureBinaryAvailable, resolveWaifu2xBinary, resolveWaifu2xModelsDir } 
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
 import { getImageFilesFromFolder } from './discovery';
 import { scaleStillImage } from './ffmpeg';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 const WAIFU2X_SCALES = [2, 3, 4] as const;
@@ -159,7 +159,7 @@ async function runWaifu2xDirectory(
 
 async function runWaifu2x(binaryPath: string, args: string[], emitter: JobEmitter): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args, {
+    const child = spawnManaged(binaryPath, args, {
       windowsHide: true,
     });
 

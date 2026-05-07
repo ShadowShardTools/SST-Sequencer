@@ -5,6 +5,7 @@ import { resolveBatchVideoUpscaleOutput } from '../media/outputs';
 import type { JobEmitter } from '../media/types';
 import {
   validateAlphaMode,
+  validateBackgroundRemoveModel,
   validateQualitySetting,
   validateResolutionSetting,
   validateUpscaleMode,
@@ -24,6 +25,7 @@ export async function runBatchVideoUpscaleJob(
   validateUpscalerType(upscaler);
   validateUpscaleMode(request.upscaleMode, upscaler);
   validateAlphaMode(request.alphaMode);
+  validateBackgroundRemoveModel(request.backgroundRemoveModel);
   validateUpscalerPresetConfiguration(request.upscalerConfig);
 
   const videoPaths =
@@ -58,6 +60,8 @@ export async function runBatchVideoUpscaleJob(
           customHeight: request.customHeight,
           upscaleMode: request.upscaleMode,
           alphaMode: request.alphaMode,
+          backgroundRemove: request.backgroundRemove,
+          backgroundRemoveModel: request.backgroundRemoveModel,
           upscalerConfig: request.upscalerConfig,
           format: request.format,
         } satisfies VideoUpscaleJob,

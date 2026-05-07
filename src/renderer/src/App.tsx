@@ -2,7 +2,7 @@ import { startTransition, useEffect, useEffectEvent, useMemo, useState } from 'r
 import { getDefaultUpscalerForPlatform, getSupportedUpscalerOptions } from '../../shared/upscalers/registry';
 import { resolveResolution } from '../../shared/resolution';
 import type { JobEvent } from '../../shared/jobs';
-import { CompactSegmentGroup, Panel, ProgressSteps } from './components/shell';
+import { CompactSegmentGroup, Panel } from './components/shell';
 import { useBatchImageUpscaleWorkflow } from './hooks/use-batch-image-upscale';
 import { useBatchSequenceToVideoWorkflow } from './hooks/use-batch-sequence-to-video';
 import { useBatchVideoUpscaleWorkflow } from './hooks/use-batch-video-upscale';
@@ -11,10 +11,10 @@ import { useImageUpscaleWorkflow } from './hooks/use-image-upscale';
 import { useSequenceToVideoWorkflow } from './hooks/use-sequence-to-video';
 import { useVideoToSequenceWorkflow } from './hooks/use-video-to-sequence';
 import { useVideoUpscaleWorkflow } from './hooks/use-video-upscale';
+import { sortNaturalPaths } from './lib/path-utils';
 import { estimateVideoSizeNote } from './lib/quality';
 import { modeMeta } from './features/workflows/defaults';
 import {
-  buildWorkflowSteps,
   buildWorkflowViewModel,
   getFooterStatus,
   getPrimaryActionHint,
@@ -108,6 +108,7 @@ export default function App() {
           case 'started':
             return {
               running: true,
+              cancelRequested: false,
               jobId: event.jobId,
               requestKind: current.requestKind,
               percent: 0,
@@ -138,6 +139,7 @@ export default function App() {
             return {
               ...current,
               running: false,
+              cancelRequested: false,
               jobId: event.jobId,
               requestKind: current.requestKind,
               percent: event.success ? 100 : current.percent,
@@ -155,6 +157,97 @@ export default function App() {
 
   useEffect(() => {
     return window.mediaApi.onJobEvent(handleJobEvent);
+  }, []);
+
+  const handlePaste = useEffectEvent(async (event: ClipboardEvent) => {
+    if (isEditablePasteTarget(event.target)) {
+      return;
+    }
+
+    if (
+      activeTab !== 'sequence-to-video' &&
+      activeTab !== 'image-upscale' &&
+      activeTab !== 'batch-image-upscale'
+    ) {
+      return;
+    }
+
+    const clipboardItems = [...(event.clipboardData?.items ?? [])].filter((item) =>
+      item.type.startsWith('image/')
+    );
+    if (clipboardItems.length === 0) {
+      return;
+    }
+
+    const pastedPaths: string[] = [];
+    for (const item of clipboardItems) {
+      const file = item.getAsFile();
+      if (!file) {
+        continue;
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const savedPath = await window.mediaApi.savePastedImage({
+        data: new Uint8Array(arrayBuffer),
+        mimeType: file.type || item.type,
+      });
+      if (savedPath) {
+        pastedPaths.push(savedPath);
+      }
+    }
+
+    if (pastedPaths.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+    const mergedPaths = sortNaturalPaths([...new Set(pastedPaths)]);
+
+    startTransition(() => {
+      switch (activeTab) {
+        case 'sequence-to-video':
+          sequenceToVideo.setDropNotice(null);
+          sequenceToVideo.setJob((current) => ({
+            ...current,
+            sourceMode: 'images',
+            imagePaths: sortNaturalPaths([
+              ...new Set([...(current.imagePaths ?? []), ...mergedPaths]),
+            ]),
+            sequenceFolder: '',
+          }));
+          break;
+        case 'image-upscale':
+          imageUpscale.setDropNotice(null);
+          imageUpscale.setJob((current) => ({
+            ...current,
+            imagePaths: sortNaturalPaths([
+              ...new Set([...(current.imagePaths ?? []), ...mergedPaths]),
+            ]),
+          }));
+          break;
+        case 'batch-image-upscale':
+          batchImageUpscale.setJob((current) => ({
+            ...current,
+            sourceMode: 'files',
+            imagePaths: sortNaturalPaths([
+              ...new Set([...(current.imagePaths ?? []), ...mergedPaths]),
+            ]),
+            scanRoot: '',
+          }));
+          break;
+      }
+    });
+  });
+
+  useEffect(() => {
+    const listener = (event: ClipboardEvent) => {
+      void handlePaste(event);
+    };
+
+    window.addEventListener('paste', listener);
+    return () => {
+      window.removeEventListener('paste', listener);
+    };
   }, []);
 
   const pipelineOptions =
@@ -222,7 +315,6 @@ export default function App() {
 
   const topHelperText = getTopHelperText(activeTab, currentWorkflow.validation, activity);
   const topHelperTone = getTopHelperTone(currentWorkflow.validation, activity);
-  const progressSteps = buildWorkflowSteps(currentWorkflow.validation, activity);
   const primaryActionHint = getPrimaryActionHint(currentWorkflow, activity);
   const primaryActionHintTone = getPrimaryActionHintTone(currentWorkflow.validation, activity);
   const sequenceSizeEstimate =
@@ -313,6 +405,7 @@ export default function App() {
     setActivity((current) => ({
       ...current,
       running: true,
+      cancelRequested: false,
       requestKind: currentWorkflow.request.kind,
       percent: 0,
       summary: undefined,
@@ -326,6 +419,7 @@ export default function App() {
       setActivity((current) => ({
         ...current,
         running: false,
+        cancelRequested: false,
         success: false,
         message,
         logs: [...current.logs, `[error] ${message}`],
@@ -333,11 +427,44 @@ export default function App() {
     }
   }
 
+  async function cancelCurrentJob(): Promise<void> {
+    if (!activity.running || !activity.jobId || activity.cancelRequested) {
+      return;
+    }
+
+    setActivity((current) => ({
+      ...current,
+      cancelRequested: true,
+      message: 'Cancelling job...',
+    }));
+
+    try {
+      const cancelled = await window.mediaApi.cancelJob(activity.jobId);
+      if (!cancelled) {
+        setActivity((current) => ({
+          ...current,
+          cancelRequested: false,
+          message: 'The active job could not be cancelled.',
+          logs: [...current.logs, '[error] The active job could not be cancelled.'],
+        }));
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'The active job could not be cancelled.';
+      setActivity((current) => ({
+        ...current,
+        cancelRequested: false,
+        message,
+        logs: [...current.logs, `[error] ${message}`],
+      }));
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#1a1a1f] text-slate-100">
-      <div className="grid min-h-screen grid-rows-[minmax(0,1fr)_42px]">
-        <div className="grid min-h-0 xl:grid-cols-[minmax(0,1fr)_392px]">
-          <main className="min-h-0 overflow-y-auto">
+    <div className="h-screen overflow-hidden bg-[#1a1a1f] text-slate-100">
+      <div className="grid h-screen overflow-hidden grid-rows-[minmax(0,1fr)_42px]">
+        <div className="grid min-h-0 overflow-hidden grid-cols-[minmax(0,1fr)_392px]">
+          <main className="relative z-0 min-h-0 overflow-y-auto">
             <div className="flex min-h-full flex-col gap-3 p-3">
               <Panel className="py-2.5">
                 <div className="flex flex-wrap items-center gap-3">
@@ -374,8 +501,6 @@ export default function App() {
                       </p>
                     )}
                   </div>
-
-                  <ProgressSteps steps={progressSteps} />
 
                   <WorkflowSourceSection
                     activeTab={activeTab}
@@ -433,59 +558,72 @@ export default function App() {
             </div>
           </main>
 
-          <aside className="min-h-0 overflow-y-auto border-t border-white/8 bg-[#141418] xl:border-l xl:border-t-0">
-            <div className="p-3">
-              <section className="app-surface relative overflow-visible space-y-4 p-4">
-                <div className="space-y-1">
+          <aside className="relative z-20 min-h-0 overflow-hidden border-l border-white/8 bg-[#141418]">
+            <div className="flex h-full min-h-0 flex-col px-4 py-3">
+              <section className="relative flex h-full min-h-0 flex-col overflow-visible">
+                <div className="space-y-1 border-b border-white/8 pb-3">
                   <h2 className="text-sm font-semibold text-white">Parameters</h2>
                   <p className="text-sm text-slate-400">{currentWorkflow.meta.strap}</p>
                 </div>
 
-                <div className="space-y-3">
-                  <WorkflowParameterFields
-                    activeTab={activeTab}
-                    sequenceToVideo={sequenceToVideo.job}
-                    setSequenceToVideo={sequenceToVideo.setJob}
-                    videoToSequence={videoToSequence.job}
-                    setVideoToSequence={videoToSequence.setJob}
-                    imageUpscale={imageUpscale.job}
-                    setImageUpscale={imageUpscale.setJob}
-                    videoUpscale={videoUpscale.job}
-                    setVideoUpscale={videoUpscale.setJob}
-                    onVideoToSequenceFpsInput={() => videoToSequence.setFpsTouched(true)}
-                    batchVideoToSequence={batchVideoToSequence.job}
-                    setBatchVideoToSequence={batchVideoToSequence.setJob}
-                    batchImageUpscale={batchImageUpscale.job}
-                    setBatchImageUpscale={batchImageUpscale.setJob}
-                    batchVideoUpscale={batchVideoUpscale.job}
-                    setBatchVideoUpscale={batchVideoUpscale.setJob}
-                    batchSequenceToVideo={batchSequenceToVideo.job}
-                    setBatchSequenceToVideo={batchSequenceToVideo.setJob}
-                    upscalerOptions={supportedUpscalerOptions}
-                    sequencePreview={sequenceToVideo.preview}
-                    imageUpscalePreview={imageUpscale.preview}
-                    videoPreview={videoToSequence.preview}
-                    videoUpscalePreview={videoUpscale.preview}
-                    sequenceSizeEstimate={sequenceSizeEstimate}
-                    actions={{
-                      pickOutputVideo: sequenceToVideo.pickOutputVideo,
-                      pickSingleOutputFolder: videoToSequence.pickOutputFolder,
-                      pickImageUpscaleOutputFolder: imageUpscale.pickOutputFolder,
-                      pickVideoUpscaleOutput: videoUpscale.pickOutputVideo,
-                      pickBatchOutputRoot,
-                    }}
-                  />
+                <div className="min-h-0 flex-1 overflow-y-auto py-3 pr-1">
+                  <div className="space-y-3">
+                    <WorkflowParameterFields
+                      activeTab={activeTab}
+                      sequenceToVideo={sequenceToVideo.job}
+                      setSequenceToVideo={sequenceToVideo.setJob}
+                      videoToSequence={videoToSequence.job}
+                      setVideoToSequence={videoToSequence.setJob}
+                      imageUpscale={imageUpscale.job}
+                      setImageUpscale={imageUpscale.setJob}
+                      videoUpscale={videoUpscale.job}
+                      setVideoUpscale={videoUpscale.setJob}
+                      onVideoToSequenceFpsInput={() => videoToSequence.setFpsTouched(true)}
+                      batchVideoToSequence={batchVideoToSequence.job}
+                      setBatchVideoToSequence={batchVideoToSequence.setJob}
+                      batchImageUpscale={batchImageUpscale.job}
+                      setBatchImageUpscale={batchImageUpscale.setJob}
+                      batchVideoUpscale={batchVideoUpscale.job}
+                      setBatchVideoUpscale={batchVideoUpscale.setJob}
+                      batchSequenceToVideo={batchSequenceToVideo.job}
+                      setBatchSequenceToVideo={batchSequenceToVideo.setJob}
+                      upscalerOptions={supportedUpscalerOptions}
+                      sequencePreview={sequenceToVideo.preview}
+                      imageUpscalePreview={imageUpscale.preview}
+                      videoPreview={videoToSequence.preview}
+                      videoUpscalePreview={videoUpscale.preview}
+                      sequenceSizeEstimate={sequenceSizeEstimate}
+                      actions={{
+                        pickOutputVideo: sequenceToVideo.pickOutputVideo,
+                        pickSingleOutputFolder: videoToSequence.pickOutputFolder,
+                        pickImageUpscaleOutputFolder: imageUpscale.pickOutputFolder,
+                        pickVideoUpscaleOutput: videoUpscale.pickOutputVideo,
+                        pickBatchOutputRoot,
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={runCurrentJob}
-                    disabled={activity.running || !currentWorkflow.validation.ready}
-                    className="primary-button w-full rounded-[8px] px-4 py-3 text-sm font-semibold"
-                  >
-                    {activity.running ? 'Processing...' : currentWorkflow.meta.runLabel}
-                  </button>
+                <div className="space-y-2 border-t border-white/8 pt-3">
+                  {activity.running ? (
+                    <button
+                      type="button"
+                      onClick={cancelCurrentJob}
+                      disabled={!activity.jobId || activity.cancelRequested}
+                      className="secondary-button w-full rounded-[8px] px-4 py-3 text-sm font-semibold"
+                    >
+                      {activity.cancelRequested ? 'Cancelling...' : 'Cancel'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={runCurrentJob}
+                      disabled={!currentWorkflow.validation.ready}
+                      className="primary-button w-full rounded-[8px] px-4 py-3 text-sm font-semibold"
+                    >
+                      {currentWorkflow.meta.runLabel}
+                    </button>
+                  )}
                   <p
                     className={`text-sm ${
                       primaryActionHintTone === 'warning'
@@ -534,4 +672,12 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+function isEditablePasteTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'));
 }

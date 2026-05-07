@@ -21,6 +21,11 @@ import {
   resolveVideoUpscaleOutput,
 } from './outputs';
 
+const backgroundRemoveDefaults = {
+  backgroundRemove: false,
+  backgroundRemoveModel: 'u2net' as const,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(access).mockRejectedValue(new Error('missing'));
@@ -36,6 +41,7 @@ describe('media output resolution helpers', () => {
         fps: 24,
         speed: 1,
         quality: 100,
+        ...backgroundRemoveDefaults,
         resolutionMode: 'source',
         upscaleMode: 'off',
         alphaMode: 'auto',
@@ -54,6 +60,7 @@ describe('media output resolution helpers', () => {
         fps: 24,
         speed: 1,
         quality: 100,
+        ...backgroundRemoveDefaults,
         resolutionMode: 'source',
         upscaleMode: 'off',
         alphaMode: 'auto',
@@ -72,6 +79,7 @@ describe('media output resolution helpers', () => {
         fps: 24,
         speed: 1,
         quality: 100,
+        ...backgroundRemoveDefaults,
         resolutionMode: 'source',
         upscaleMode: 'off',
         alphaMode: 'auto',
@@ -99,6 +107,7 @@ describe('media output resolution helpers', () => {
           fps: 24,
           speed: 1,
           quality: 100,
+          ...backgroundRemoveDefaults,
           resolutionMode: 'source',
           upscaleMode: 'off',
           alphaMode: 'auto',
@@ -126,6 +135,7 @@ describe('media output resolution helpers', () => {
         fps: 24,
         speed: 1,
         quality: 100,
+        ...backgroundRemoveDefaults,
         resolutionMode: 'source',
         upscaleMode: 'off',
         alphaMode: 'auto',
@@ -142,6 +152,7 @@ describe('media output resolution helpers', () => {
           kind: 'image-upscale',
           imagePaths: ['D:\\images\\sprite.png'],
           quality: 100,
+          ...backgroundRemoveDefaults,
           resolutionMode: 'source',
           upscaleMode: '2x',
           alphaMode: 'auto',
@@ -171,6 +182,7 @@ describe('media output resolution helpers', () => {
           fps: 24,
           speed: 1,
           quality: 100,
+          ...backgroundRemoveDefaults,
           resolutionMode: 'source',
           upscaleMode: 'off',
           alphaMode: 'auto',
@@ -189,6 +201,7 @@ describe('media output resolution helpers', () => {
         videoPath: 'D:\\clip.mov',
         outputPath: 'D:\\exports\\clip.apng.mp4',
         quality: 100,
+        ...backgroundRemoveDefaults,
         resolutionMode: 'source',
         upscaleMode: '2x',
         alphaMode: 'auto',

@@ -31,6 +31,7 @@ export type BatchTabId =
 
 export type ActivityState = {
   running: boolean;
+  cancelRequested?: boolean;
   jobId?: string;
   requestKind?: JobRequest['kind'];
   percent: number;

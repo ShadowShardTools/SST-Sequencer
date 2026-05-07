@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
 import type { AlphaMode } from '../../shared/formats';
 import { ensureBinaryAvailable, ffmpegBinary } from './binaries';
 import { probeMediaInfo } from './ffprobe';
 import { runFfmpeg } from './ffmpeg-runner';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 export type ResolvedAlphaMode = Exclude<AlphaMode, 'auto'>;
@@ -56,7 +56,7 @@ export async function detectAlphaMode(inputPath: string): Promise<ResolvedAlphaM
   await ensureBinaryAvailable(ffmpegBinary, 'FFmpeg');
 
   return new Promise((resolve, reject) => {
-    const child = spawn(
+    const child = spawnManaged(
       ffmpegBinary,
       [
         '-hide_banner',

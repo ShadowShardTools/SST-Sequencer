@@ -110,7 +110,9 @@ export async function resolveImageUpscaleDirectory(
     throw new Error('Select source images before choosing an output directory.');
   }
 
-  return ensureUniqueDirectory(join(dirname(firstImagePath), 'upscaled_images'));
+  return ensureUniqueDirectory(
+    join(dirname(firstImagePath), request.backgroundRemove && request.upscaleMode === 'off' ? 'background_removed' : 'upscaled_images')
+  );
 }
 
 export async function resolveImageUpscaleOutputPath(
@@ -134,7 +136,10 @@ export function resolveBatchImageUpscaleDirectory(
     return outputRoot;
   }
 
-  return join(dirname(imagePath), 'upscaled_images');
+  return join(
+    dirname(imagePath),
+    request.backgroundRemove && request.upscaleMode === 'off' ? 'background_removed' : 'upscaled_images'
+  );
 }
 
 export async function resolveVideoUpscaleOutput(

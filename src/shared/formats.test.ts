@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BACKGROUND_REMOVE_MODEL_OPTIONS,
   applyVideoFormatExtension,
   getDefaultUpscalerForPlatform,
   getUpscaleFactor,
@@ -18,6 +19,7 @@ import {
   UPSCALE_OPTIONS,
   VIDEO_FORMAT_OPTIONS,
   videoFormatSupportsAlpha,
+  isValidBackgroundRemoveModel,
   isValidRealEsrganModel,
 } from './formats';
 
@@ -68,6 +70,19 @@ describe('shared format metadata', () => {
     ]);
     expect(isValidRealEsrganModel('realesrgan-x4plus')).toBe(true);
     expect(isValidRealEsrganModel('invalid-model')).toBe(false);
+  });
+
+  it('includes the curated rembg background removal models', () => {
+    expect(BACKGROUND_REMOVE_MODEL_OPTIONS.map((option) => option.value)).toEqual(
+      expect.arrayContaining([
+        'birefnet-general',
+        'birefnet-general-lite',
+        'birefnet-portrait',
+      ])
+    );
+    expect(isValidBackgroundRemoveModel('birefnet-general')).toBe(true);
+    expect(isValidBackgroundRemoveModel('birefnet-general-lite')).toBe(true);
+    expect(isValidBackgroundRemoveModel('birefnet-portrait')).toBe(true);
   });
 
   it('reports supported scales per upscaler', () => {

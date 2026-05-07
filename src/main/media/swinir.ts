@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -10,6 +9,7 @@ import {
   resolveSwinIrVendorDir,
 } from './binaries';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
+import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
 const SWINIR_SCALES = [2, 3, 4] as const;
@@ -199,7 +199,7 @@ async function runSwinIr(
   emitter: JobEmitter
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(python.command, [...python.argsPrefix, ...args], {
+    const child = spawnManaged(python.command, [...python.argsPrefix, ...args], {
       windowsHide: true,
     });
 
@@ -245,7 +245,7 @@ async function runSwinIr(
 
 async function runProcess(command: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawnManaged(command, args, {
       windowsHide: true,
       stdio: 'ignore',
     });

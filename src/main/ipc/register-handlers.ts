@@ -1,3 +1,4 @@
+import { registerClipboardHandlers } from './clipboard-handlers';
 import { registerDialogHandlers } from './dialog-handlers';
 import { registerJobHandlers } from './job-handlers';
 import { registerPathHandlers } from './path-handlers';
@@ -15,5 +16,6 @@ export function registerIpcHandlers(): void {
   registerDialogHandlers();
   registerPreviewHandlers();
   registerPathHandlers();
+  registerClipboardHandlers();
   registerJobHandlers();
 }

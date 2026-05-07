@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { access, copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +7,7 @@ import {
   resolveRealcuganModelsDir,
 } from './binaries';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
+import { spawnManaged } from './job-runtime';
 import type { AlphaMode, RealcuganVariant } from '../../shared/formats';
 import type { JobEmitter } from './types';
 
@@ -158,7 +158,7 @@ async function runRealcuganProcess(
   emitter: JobEmitter
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args, {
+    const child = spawnManaged(binaryPath, args, {
       windowsHide: true,
     });
 

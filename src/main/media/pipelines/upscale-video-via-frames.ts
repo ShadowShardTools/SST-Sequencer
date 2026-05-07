@@ -1,12 +1,26 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { getUpscaleFactor, getUpscalerLabel, type AlphaMode, type UpscalerConfig } from '../../../shared/upscalers/registry';
-import { createImagesFromImageSequence, createImagesFromVideo, type ResizeOptions } from '../ffmpeg';
-import { probeMediaInfo } from '../ffprobe';
+import type { BackgroundRemoveModel } from '../../../shared/formats';
+import {
+  getUpscaleFactor,
+  getUpscalerLabel,
+  type AlphaMode,
+  type UpscalerConfig,
+} from '../../../shared/upscalers/registry';
+import {
+  createImagesFromImageSequence,
+  createImagesFromVideo,
+  type ResizeOptions,
+} from '../ffmpeg';
 import { getImageFilesFromFolder } from '../discovery';
+import { probeMediaInfo } from '../ffprobe';
 import type { JobEmitter } from '../types';
-import { removeTemporaryDirectories, resolveUpscaledResize } from '../../jobs/job-helpers';
+import {
+  removeTemporaryDirectories,
+  resolveUpscaledResize,
+} from '../../jobs/job-helpers';
+import { removeBackgroundFromImageDirectory } from './background-remove-directory';
 import { upscaleFrameDirectory } from './upscale-frame-directory';
 
 export async function createImageSequenceFromVideoWithUpscale(options: {
@@ -22,14 +36,18 @@ export async function createImageSequenceFromVideoWithUpscale(options: {
   upscaleMode: string;
   upscalerConfig: UpscalerConfig;
   alphaMode: AlphaMode;
+  backgroundRemove: boolean;
+  backgroundRemoveModel: BackgroundRemoveModel;
   emitter: JobEmitter;
   onExtractProgress?: (percent: number) => void;
 }): Promise<void> {
-  const upscaleFactor = getUpscaleFactor(options.upscaleMode as Parameters<typeof getUpscaleFactor>[0]);
+  const upscaleFactor = getUpscaleFactor(
+    options.upscaleMode as Parameters<typeof getUpscaleFactor>[0]
+  );
   const sourceMediaInfo = await probeMediaInfo(options.videoPath);
-  const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
+  const preserveAlpha = options.backgroundRemove || Boolean(sourceMediaInfo.hasAlpha);
 
-  if (upscaleFactor <= 1) {
+  if (upscaleFactor <= 1 && !options.backgroundRemove) {
     await createImagesFromVideo({
       videoPath: options.videoPath,
       outputDir: options.outputDir,
@@ -46,36 +64,15 @@ export async function createImageSequenceFromVideoWithUpscale(options: {
     return;
   }
 
-  if (options.upscalerConfig.kind === 'nearest') {
-    const nearestResize = resolveUpscaledResize(
-      options.resize,
-      sourceMediaInfo.width,
-      sourceMediaInfo.height,
-      upscaleFactor
-    );
-
-    await createImagesFromVideo({
-      videoPath: options.videoPath,
-      outputDir: options.outputDir,
-      fps: options.fps,
-      speed: options.speed,
-      quality: options.quality,
-      resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
-      format: options.format,
-      prefix: options.prefix,
-      startNumber: options.startNumber,
-      emitter: options.emitter,
-      onProgress: options.onExtractProgress,
-    });
-    return;
-  }
-
   const tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-base-'));
-  const tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
+  let tempBackgroundRemovedDir = '';
+  let tempUpscaledDir = '';
 
   try {
     options.emitter.log(
-      `Extracting base frames from ${basename(options.videoPath)} for ${options.upscaleMode} ${getUpscalerLabel(options.upscalerConfig.kind)} upscale.`
+      `Extracting base frames from ${basename(options.videoPath)} for ${
+        options.backgroundRemove ? 'background removal and ' : ''
+      }${options.upscaleMode} ${getUpscalerLabel(options.upscalerConfig.kind)} processing.`
     );
     await createImagesFromVideo({
       videoPath: options.videoPath,
@@ -91,12 +88,63 @@ export async function createImageSequenceFromVideoWithUpscale(options: {
       onProgress: options.onExtractProgress,
     });
 
+    let preparedInputDir = tempBaseDir;
+    if (options.backgroundRemove) {
+      tempBackgroundRemovedDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-bg-remove-'));
+      await removeBackgroundFromImageDirectory({
+        inputDir: tempBaseDir,
+        outputDir: tempBackgroundRemovedDir,
+        model: options.backgroundRemoveModel,
+        emitter: options.emitter,
+        logLabel: basename(options.videoPath),
+      });
+      preparedInputDir = tempBackgroundRemovedDir;
+    }
+
+    const preparedImagePaths = await getImageFilesFromFolder(preparedInputDir);
+    if (upscaleFactor <= 1) {
+      await createImagesFromImageSequence({
+        imagePaths: preparedImagePaths,
+        outputDir: options.outputDir,
+        format: options.format,
+        quality: options.quality,
+        prefix: options.prefix,
+        startNumber: options.startNumber,
+        emitter: options.emitter,
+      });
+      return;
+    }
+
+    if (options.upscalerConfig.kind === 'nearest') {
+      const nearestResize = resolveUpscaledResize(
+        options.resize,
+        sourceMediaInfo.width,
+        sourceMediaInfo.height,
+        upscaleFactor
+      );
+
+      await createImagesFromImageSequence({
+        imagePaths: preparedImagePaths,
+        outputDir: options.outputDir,
+        format: options.format,
+        quality: options.quality,
+        prefix: options.prefix,
+        startNumber: options.startNumber,
+        resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
+        emitter: options.emitter,
+      });
+      return;
+    }
+
+    tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-sequencer-upscale-out-'));
     options.emitter.log(
-      `Running ${getUpscalerLabel(options.upscalerConfig.kind)} ${options.upscaleMode} on extracted frames from ${basename(options.videoPath)}.`
+      `Running ${getUpscalerLabel(options.upscalerConfig.kind)} ${
+        options.upscaleMode
+      } on extracted frames from ${basename(options.videoPath)}.`
     );
     await upscaleFrameDirectory({
       upscalerConfig: options.upscalerConfig,
-      inputDir: tempBaseDir,
+      inputDir: preparedInputDir,
       outputDir: tempUpscaledDir,
       scale: upscaleFactor,
       preserveAlpha,
@@ -115,7 +163,9 @@ export async function createImageSequenceFromVideoWithUpscale(options: {
       emitter: options.emitter,
     });
   } finally {
-    await removeTemporaryDirectories(tempBaseDir, tempUpscaledDir);
+    await removeTemporaryDirectories(
+      ...[tempBaseDir, tempBackgroundRemovedDir, tempUpscaledDir].filter(Boolean)
+    );
   }
 }
 
@@ -126,17 +176,23 @@ export async function extractVideoFramesForVideoUpscale(options: {
   upscaleMode: string;
   upscalerConfig: UpscalerConfig;
   alphaMode: AlphaMode;
+  backgroundRemove: boolean;
+  backgroundRemoveModel: BackgroundRemoveModel;
   emitter: JobEmitter;
   onExtractProgress?: (percent: number) => void;
 }): Promise<{ imagePaths: string[]; cleanup: () => Promise<void> }> {
   const sourceMediaInfo = await probeMediaInfo(options.videoPath);
-  const preserveAlpha = Boolean(sourceMediaInfo.hasAlpha);
-  const upscaleFactor = getUpscaleFactor(options.upscaleMode as Parameters<typeof getUpscaleFactor>[0]);
+  const preserveAlpha = options.backgroundRemove || Boolean(sourceMediaInfo.hasAlpha);
+  const upscaleFactor = getUpscaleFactor(
+    options.upscaleMode as Parameters<typeof getUpscaleFactor>[0]
+  );
   const tempBaseDir = await mkdtemp(join(tmpdir(), 'sst-video-upscale-base-'));
+  let tempBackgroundRemovedDir = '';
   let tempUpscaledDir = '';
+  let tempNearestDir = '';
 
   try {
-    if (upscaleFactor <= 1 || options.upscalerConfig.kind === 'nearest') {
+    if (!options.backgroundRemove && (upscaleFactor <= 1 || options.upscalerConfig.kind === 'nearest')) {
       const directResize =
         upscaleFactor > 1
           ? resolveUpscaledResize(
@@ -156,7 +212,10 @@ export async function extractVideoFramesForVideoUpscale(options: {
         resize:
           upscaleFactor > 1
             ? directResize
-              ? { ...directResize, flags: options.upscalerConfig.kind === 'nearest' ? 'neighbor' : 'lanczos' }
+              ? {
+                  ...directResize,
+                  flags: options.upscalerConfig.kind === 'nearest' ? 'neighbor' : 'lanczos',
+                }
               : directResize
             : directResize,
         format: 'png',
@@ -170,12 +229,10 @@ export async function extractVideoFramesForVideoUpscale(options: {
       return {
         imagePaths,
         cleanup: async () => {
-          await removeTemporaryDirectories(tempBaseDir);
+          await removeTemporaryDirectories(...[tempBaseDir].filter(Boolean));
         },
       };
     }
-
-    tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-video-upscale-out-'));
 
     await createImagesFromVideo({
       videoPath: options.videoPath,
@@ -191,9 +248,64 @@ export async function extractVideoFramesForVideoUpscale(options: {
       onProgress: options.onExtractProgress,
     });
 
+    let preparedInputDir = tempBaseDir;
+    if (options.backgroundRemove) {
+      tempBackgroundRemovedDir = await mkdtemp(join(tmpdir(), 'sst-video-upscale-bg-remove-'));
+      await removeBackgroundFromImageDirectory({
+        inputDir: tempBaseDir,
+        outputDir: tempBackgroundRemovedDir,
+        model: options.backgroundRemoveModel,
+        emitter: options.emitter,
+        logLabel: basename(options.videoPath),
+      });
+      preparedInputDir = tempBackgroundRemovedDir;
+    }
+
+    const preparedImagePaths = await getImageFilesFromFolder(preparedInputDir);
+    if (upscaleFactor <= 1) {
+      return {
+        imagePaths: preparedImagePaths,
+        cleanup: async () => {
+          await removeTemporaryDirectories(
+            ...[tempBaseDir, tempBackgroundRemovedDir].filter(Boolean)
+          );
+        },
+      };
+    }
+
+    if (options.upscalerConfig.kind === 'nearest') {
+      const nearestResize = resolveUpscaledResize(
+        options.resize,
+        sourceMediaInfo.width,
+        sourceMediaInfo.height,
+        upscaleFactor
+      );
+      tempNearestDir = await mkdtemp(join(tmpdir(), 'sst-video-upscale-nearest-'));
+      await createImagesFromImageSequence({
+        imagePaths: preparedImagePaths,
+        outputDir: tempNearestDir,
+        format: 'png',
+        quality: 100,
+        prefix: 'frame',
+        startNumber: 1,
+        resize: nearestResize ? { ...nearestResize, flags: 'neighbor' } : nearestResize,
+        emitter: options.emitter,
+      });
+      const imagePaths = await getImageFilesFromFolder(tempNearestDir);
+      return {
+        imagePaths,
+        cleanup: async () => {
+          await removeTemporaryDirectories(
+            ...[tempBaseDir, tempBackgroundRemovedDir, tempNearestDir].filter(Boolean)
+          );
+        },
+      };
+    }
+
+    tempUpscaledDir = await mkdtemp(join(tmpdir(), 'sst-video-upscale-out-'));
     await upscaleFrameDirectory({
       upscalerConfig: options.upscalerConfig,
-      inputDir: tempBaseDir,
+      inputDir: preparedInputDir,
       outputDir: tempUpscaledDir,
       scale: upscaleFactor,
       preserveAlpha,
@@ -205,11 +317,15 @@ export async function extractVideoFramesForVideoUpscale(options: {
     return {
       imagePaths,
       cleanup: async () => {
-        await removeTemporaryDirectories(tempBaseDir, tempUpscaledDir);
+        await removeTemporaryDirectories(
+          ...[tempBaseDir, tempBackgroundRemovedDir, tempUpscaledDir].filter(Boolean)
+        );
       },
     };
   } catch (error) {
-    await removeTemporaryDirectories(tempBaseDir, tempUpscaledDir);
+    await removeTemporaryDirectories(
+      ...[tempBaseDir, tempBackgroundRemovedDir, tempUpscaledDir, tempNearestDir].filter(Boolean)
+    );
     throw error;
   }
 }

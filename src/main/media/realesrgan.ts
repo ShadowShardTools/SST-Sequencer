@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
@@ -10,6 +9,7 @@ import {
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
 import { getImageFilesFromFolder } from './discovery';
 import { scaleStillImage } from './ffmpeg';
+import { spawnManaged } from './job-runtime';
 import type { AlphaMode, RealEsrganModel } from '../../shared/formats';
 import type { JobEmitter } from './types';
 
@@ -178,7 +178,7 @@ async function runRealEsrgan(
   emitter: JobEmitter
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(binaryPath, args, {
+    const child = spawnManaged(binaryPath, args, {
       windowsHide: true,
     });
 
