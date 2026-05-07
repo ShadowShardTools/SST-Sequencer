@@ -1,14 +1,17 @@
 {
   "name": "sst-sequencer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Electron desktop app for building videos from image sequences and extracting image sequences from videos.",
   "main": "main.cjs",
   "scripts": {
-    "postinstall": "node scripts/setup-realesrgan.mjs && node scripts/setup-realcugan.mjs && node scripts/setup-waifu2x.mjs && node scripts/setup-realsr.mjs && node scripts/setup-swinir.mjs && node scripts/setup-dat.mjs && node scripts/setup-anime4kcpp.mjs && node scripts/setup-rembg.mjs",
+    "postinstall": "node scripts/setup-realesrgan.mjs && node scripts/setup-realcugan.mjs && node scripts/setup-waifu2x.mjs && node scripts/setup-realsr.mjs && node scripts/setup-python311.mjs && node scripts/setup-python311-cpu.mjs && node scripts/setup-python311-directml.mjs && node scripts/setup-swinir.mjs && node scripts/setup-dat.mjs && node scripts/setup-anime4kcpp.mjs && node scripts/setup-rembg.mjs",
     "setup:realesrgan": "node scripts/setup-realesrgan.mjs",
     "setup:realcugan": "node scripts/setup-realcugan.mjs",
     "setup:waifu2x": "node scripts/setup-waifu2x.mjs",
     "setup:realsr": "node scripts/setup-realsr.mjs",
+    "setup:python311": "node scripts/setup-python311.mjs",
+    "setup:python311-cpu": "node scripts/setup-python311-cpu.mjs",
+    "setup:python311-directml": "node scripts/setup-python311-directml.mjs",
     "setup:swinir": "node scripts/setup-swinir.mjs",
     "setup:dat": "node scripts/setup-dat.mjs",
     "setup:anime4kcpp": "node scripts/setup-anime4kcpp.mjs",
@@ -16,7 +19,11 @@
     "dev": "node scripts/run-electron-vite.mjs dev",
     "build": "tsc --noEmit && node scripts/run-electron-vite.mjs build",
     "preview": "node scripts/run-electron-vite.mjs preview",
-    "dist": "npm run build && electron-builder",
+    "dist": "npm run dist:cpu",
+    "dist:cpu": "npm run build && node scripts/run-dist.mjs cpu",
+    "dist:cuda": "npm run build && node scripts/run-dist.mjs cuda",
+    "dist:directml": "npm run build && node scripts/run-dist.mjs directml",
+    "dist:all": "npm run build && node scripts/run-dist.mjs all",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -88,6 +95,14 @@
         "to": "realsr"
       },
       {
+        "from": "vendor/python311",
+        "to": "python311"
+      },
+      {
+        "from": "vendor/python311-directml",
+        "to": "python311-directml"
+      },
+      {
         "from": "vendor/swinir",
         "to": "swinir"
       },
@@ -106,6 +121,12 @@
     ],
     "win": {
       "icon": "build/SST Sequencer.ico"
+    },
+    "nsis": {
+      "customNsisBinary": {
+        "url": "https://github.com/SoundSafari/NSISBI-ElectronBuilder/releases/download/1.0.0/nsisbi-electronbuilder-3.10.3.7z",
+        "checksum": "WRmZUsACjIc2s7bvsFGFRofK31hfS7riPlcfI1V9uFB2Q8s7tidgI/9U16+X0I9X2ZhNxi8N7Z3gKvm6ojvLvg=="
+      }
     },
     "directories": {
       "output": "release"

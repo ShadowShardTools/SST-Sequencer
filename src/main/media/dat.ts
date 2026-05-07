@@ -7,8 +7,11 @@ import {
   resolveDatArchPath,
   resolveDatModelsDir,
   resolveDatVendorDir,
+  resolveBundledPythonBinary,
 } from './binaries';
+import { hasNvidiaGpu } from './gpu-detection';
 import { upscaleImageDirectoryPreservingAlpha } from './alpha-upscale';
+import { getImageFilesFromFolder } from './discovery';
 import { spawnManaged } from './job-runtime';
 import type { JobEmitter } from './types';
 
@@ -20,15 +23,43 @@ const DAT_MODEL_FILES: Record<(typeof DAT_SCALES)[number], string> = {
 };
 const DAT_TILE_SIZE = 400;
 const DAT_TILE_OVERLAP = 32;
+const DAT_MEMORY_ERROR_PATTERNS = [
+  'out of memory',
+  'not enough memory',
+  'resource exhausted',
+  'video memory',
+  'could not allocate tensor',
+] as const;
+const DAT_ALWAYS_CHOP_DEVICE_TYPES = ['privateuseone'] as const;
+const DAT_RUNTIME_MODES = ['auto', 'cpu', 'directml'] as const;
 
 type PythonCommand = {
   command: string;
   argsPrefix: string[];
   label: string;
+  runtimeMode: 'auto' | 'cpu' | 'directml';
 };
 
 let cachedPythonCommandPromise: Promise<PythonCommand> | null = null;
 let cachedDependencyCheckPromise: Promise<void> | null = null;
+
+export function isDatMemoryRelatedErrorMessage(message: string): boolean {
+  const normalizedMessage = message.toLowerCase();
+  return DAT_MEMORY_ERROR_PATTERNS.some((pattern) => normalizedMessage.includes(pattern));
+}
+
+export function shouldDatPreferChopInference(deviceType: string): boolean {
+  return DAT_ALWAYS_CHOP_DEVICE_TYPES.includes(
+    deviceType as (typeof DAT_ALWAYS_CHOP_DEVICE_TYPES)[number]
+  );
+}
+
+export function normalizeDatRuntimeMode(value: string | undefined): (typeof DAT_RUNTIME_MODES)[number] {
+  const normalizedValue = value?.trim().toLowerCase();
+  return DAT_RUNTIME_MODES.includes(normalizedValue as (typeof DAT_RUNTIME_MODES)[number])
+    ? (normalizedValue as (typeof DAT_RUNTIME_MODES)[number])
+    : 'auto';
+}
 
 export async function ensureDatAvailable(): Promise<void> {
   const vendorDir = resolveDatVendorDir();
@@ -121,6 +152,11 @@ async function runDatDirectory(
       ],
       emitter
     );
+
+    const outputPaths = await getImageFilesFromFolder(outputDir);
+    if (outputPaths.length === 0) {
+      throw new Error('DAT did not write any output images.');
+    }
   } finally {
     await rm(runnerTempDir, { recursive: true, force: true });
   }
@@ -135,13 +171,19 @@ async function resolvePythonCommand(): Promise<PythonCommand> {
 }
 
 async function detectPythonCommand(): Promise<PythonCommand> {
+  for (const candidate of await getBundledPythonCandidates()) {
+    if (await canRunPython(candidate)) {
+      return candidate;
+    }
+  }
+
   const candidates: PythonCommand[] =
     process.platform === 'win32'
       ? [
-        { command: 'py', argsPrefix: ['-3.11'], label: 'py -3.11' },
-        { command: 'python3.11', argsPrefix: [], label: 'python3.11' },
-      ]
-      : [{ command: 'python3.11', argsPrefix: [], label: 'python3.11' }];
+          { command: 'py', argsPrefix: ['-3.11'], label: 'py -3.11', runtimeMode: 'auto' },
+          { command: 'python3.11', argsPrefix: [], label: 'python3.11', runtimeMode: 'auto' },
+        ]
+      : [{ command: 'python3.11', argsPrefix: [], label: 'python3.11', runtimeMode: 'auto' }];
 
   for (const candidate of candidates) {
     const ok = await canRunPython(candidate);
@@ -151,8 +193,43 @@ async function detectPythonCommand(): Promise<PythonCommand> {
   }
 
   throw new Error(
-    'DAT requires Python 3.11, but no usable Python 3.11 command was found. Install Python 3.11 and ensure it is available as "python3.11" or "py -3.11".'
+    'DAT could not start its bundled Python 3.11 runtime. Ensure the packaged runtime is present. For development, you can also provide an external "python3.11" or "py -3.11" command.'
   );
+}
+
+async function getBundledPythonCandidates(): Promise<PythonCommand[]> {
+  const cpuPython = resolveBundledPythonBinary('cpu');
+  const cudaPython = resolveBundledPythonBinary('cuda');
+  const directmlPython = resolveBundledPythonBinary('directml');
+  const candidates: PythonCommand[] = [];
+  const pushCandidate = (
+    command: string,
+    label: string,
+    runtimeMode: PythonCommand['runtimeMode']
+  ): void => {
+    if (!command || candidates.some((candidate) => candidate.command === command)) {
+      return;
+    }
+
+    candidates.push({ command, argsPrefix: [], label, runtimeMode });
+  };
+
+  if (process.platform === 'win32') {
+    if (await hasNvidiaGpu()) {
+      pushCandidate(cudaPython, `${cudaPython} (bundled cuda)`, 'auto');
+      pushCandidate(cpuPython, `${cpuPython} (bundled cpu fallback)`, 'cpu');
+      pushCandidate(directmlPython, `${directmlPython} (bundled directml fallback)`, 'directml');
+    } else {
+      pushCandidate(cpuPython, `${cpuPython} (bundled cpu)`, 'cpu');
+      pushCandidate(directmlPython, `${directmlPython} (bundled directml fallback)`, 'directml');
+      pushCandidate(cudaPython, `${cudaPython} (bundled cuda fallback)`, 'auto');
+    }
+    return candidates;
+  }
+
+  pushCandidate(cpuPython, `${cpuPython} (bundled cpu)`, 'cpu');
+  pushCandidate(cudaPython, `${cudaPython} (bundled cuda fallback)`, 'auto');
+  return candidates;
 }
 
 async function canRunPython(python: PythonCommand): Promise<boolean> {
@@ -181,12 +258,8 @@ async function ensureDatDependencies(python: PythonCommand): Promise<void> {
       ].join('; '),
     ]).catch(() => {
       throw new Error(
-        `DAT requires Python 3.11 with torch, timm, einops, numpy, and opencv-python installed.\n` +
-        `  ${python.label} -m pip install torch timm einops numpy opencv-python\n` +
-        `For AMD GPU on Windows DirectML:\n` +
-        `  ${python.label} -m pip install torch-directml\n` +
-        `For AMD GPU on Linux ROCm:\n` +
-        `  ${python.label} -m pip install torch --index-url https://download.pytorch.org/whl/rocm6.2`
+        `DAT could not verify its Python dependencies in the selected runtime (${python.label}). ` +
+        'The bundled runtime may be missing or incomplete.'
       );
     });
   }
@@ -198,6 +271,10 @@ async function runDat(python: PythonCommand, args: string[], emitter: JobEmitter
   return new Promise((resolve, reject) => {
     const child = spawnManaged(python.command, [...python.argsPrefix, ...args], {
       windowsHide: true,
+      env: {
+        ...process.env,
+        SST_DAT_RUNTIME: python.runtimeMode,
+      },
     });
 
     const outputTail: string[] = [];
@@ -268,6 +345,10 @@ import cv2
 import numpy as np
 import torch
 
+MEMORY_ERROR_PATTERNS = ${JSON.stringify(DAT_MEMORY_ERROR_PATTERNS)}
+ALWAYS_CHOP_DEVICE_TYPES = ${JSON.stringify(DAT_ALWAYS_CHOP_DEVICE_TYPES)}
+DAT_RUNTIME_MODES = ${JSON.stringify(DAT_RUNTIME_MODES)}
+
 
 class DummyRegistry:
     def __init__(self):
@@ -299,29 +380,38 @@ def parse_args():
 
 
 def get_device():
+    runtime_mode = os.environ.get('SST_DAT_RUNTIME', 'auto').strip().lower()
+    if runtime_mode not in DAT_RUNTIME_MODES:
+        runtime_mode = 'auto'
+
+    print(f'[DAT] Runtime mode: {runtime_mode}', flush=True)
     print(f'[DAT] Python: {sys.version}', flush=True)
     print(f'[DAT] Torch: {torch.__version__}', flush=True)
     print(f'[DAT] CUDA available: {torch.cuda.is_available()}', flush=True)
     print(f'[DAT] CUDA version: {torch.version.cuda}', flush=True)
 
-    if torch.cuda.is_available():
+    if runtime_mode != 'cpu' and torch.cuda.is_available():
         device = torch.device('cuda')
         print(f'[DAT] Using GPU: {torch.cuda.get_device_name(0)}', flush=True)
         return device
 
-    try:
-        import torch_directml
-        device = torch_directml.device()
-        print(f'[DAT] Using DirectML device: {torch_directml.device_name(0)}', flush=True)
-        return device
-    except ImportError:
-        pass
+    if runtime_mode == 'directml':
+        try:
+            import torch_directml
+            device = torch_directml.device()
+            print(f'[DAT] Using DirectML device: {torch_directml.device_name(0)}', flush=True)
+            return device
+        except ImportError:
+            print('[DAT] DirectML runtime requested but torch_directml is unavailable.', flush=True)
 
     if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
         print('[DAT] Using Apple MPS device.', flush=True)
         return torch.device('mps')
 
-    print('[DAT] No GPU found, falling back to CPU.', flush=True)
+    if runtime_mode == 'auto':
+        print('[DAT] Falling back to CPU. DirectML is disabled by default for DAT stability.', flush=True)
+    else:
+        print('[DAT] No GPU found, falling back to CPU.', flush=True)
     return torch.device('cpu')
 
 def load_dat_class(arch_path):
@@ -369,41 +459,65 @@ def define_model(scale, arch_path, model_path):
     return model
 
 
-def test(img_lq, model, scale, tile, tile_overlap):
-    if not tile:
-        return model(img_lq)
-
+def forward_chop(img_lq, model, scale, shave, min_size):
     b, c, h, w = img_lq.size()
-    tile = min(tile, h, w)
-    if tile < 8:
+    h_half, w_half = h // 2, w // 2
+    h_size, w_size = min(h_half + shave, h), min(w_half + shave, w)
+
+    input_patches = [
+        img_lq[..., 0:h_size, 0:w_size],
+        img_lq[..., 0:h_size, w - w_size:w],
+        img_lq[..., h - h_size:h, 0:w_size],
+        img_lq[..., h - h_size:h, w - w_size:w],
+    ]
+
+    if h_size * w_size <= min_size:
+        output_patches = [model(patch) for patch in input_patches]
+    else:
+        output_patches = [
+            forward_chop(patch, model, scale, shave, min_size) for patch in input_patches
+        ]
+
+    h *= scale
+    w *= scale
+    h_half *= scale
+    w_half *= scale
+    h_size *= scale
+    w_size *= scale
+
+    output = img_lq.new_zeros(b, c, h, w)
+    output[..., 0:h_half, 0:w_half] = output_patches[0][..., 0:h_half, 0:w_half]
+    output[..., 0:h_half, w_half:w] = output_patches[1][..., 0:h_half, w_size - (w - w_half):w_size]
+    output[..., h_half:h, 0:w_half] = output_patches[2][..., h_size - (h - h_half):h_size, 0:w_half]
+    output[..., h_half:h, w_half:w] = output_patches[3][
+        ..., h_size - (h - h_half):h_size, w_size - (w - w_half):w_size
+    ]
+    return output
+
+
+def run_inference(img_lq, model, scale, tile, tile_overlap, device):
+    device_type = getattr(device, 'type', str(device).split(':')[0])
+    if device_type in ALWAYS_CHOP_DEVICE_TYPES:
+        print(f'[DAT] Using chop inference immediately for device type: {device_type}', flush=True)
+        min_patch = max(tile, 64)
+        shave = max(tile_overlap, 16)
+        return forward_chop(img_lq, model, scale, shave, min_patch * min_patch)
+
+    try:
         return model(img_lq)
+    except RuntimeError as error:
+        error_message = str(error).lower()
+        memory_related = any(pattern in error_message for pattern in MEMORY_ERROR_PATTERNS)
+        if not memory_related:
+            raise
 
-    stride = tile - tile_overlap
-    if stride <= 0:
-        stride = tile
+        if device.type == 'cuda':
+            torch.cuda.empty_cache()
 
-    h_idx_list = list(range(0, h - tile, stride)) + [h - tile]
-    w_idx_list = list(range(0, w - tile, stride)) + [w - tile]
-    output_acc = torch.zeros(b, c, h * scale, w * scale).type_as(img_lq)
-    weight_acc = torch.zeros_like(output_acc)
-
-    for h_idx in h_idx_list:
-      for w_idx in w_idx_list:
-        in_patch = img_lq[..., h_idx:h_idx + tile, w_idx:w_idx + tile]
-        out_patch = model(in_patch)
-        out_patch_mask = torch.ones_like(out_patch)
-        output_acc[
-            ...,
-            h_idx * scale:(h_idx + tile) * scale,
-            w_idx * scale:(w_idx + tile) * scale,
-        ].add_(out_patch)
-        weight_acc[
-            ...,
-            h_idx * scale:(h_idx + tile) * scale,
-            w_idx * scale:(w_idx + tile) * scale,
-        ].add_(out_patch_mask)
-
-    return output_acc.div_(weight_acc)
+        print('[DAT] Falling back to chop inference.', flush=True)
+        min_patch = max(tile, 64)
+        shave = max(tile_overlap, 16)
+        return forward_chop(img_lq, model, scale, shave, min_patch * min_patch)
 
 
 def main():
@@ -430,7 +544,7 @@ def main():
             img_lq = np.transpose(img_lq[:, :, [2, 1, 0]], (2, 0, 1))
             img_lq = torch.from_numpy(img_lq).float().unsqueeze(0).to(device)
 
-            output = test(img_lq, model, args.scale, args.tile, args.tile_overlap)
+            output = run_inference(img_lq, model, args.scale, args.tile, args.tile_overlap, device)
             output = output.data.squeeze().float().cpu().clamp_(0, 1).numpy()
             output = np.transpose(output[[2, 1, 0], :, :], (1, 2, 0))
             output = (output * 255.0).round().astype(np.uint8)

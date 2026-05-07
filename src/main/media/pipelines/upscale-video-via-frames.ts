@@ -153,6 +153,11 @@ export async function createImageSequenceFromVideoWithUpscale(options: {
     });
 
     const upscaledImagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+    if (upscaledImagePaths.length === 0) {
+      throw new Error(
+        `${getUpscalerLabel(options.upscalerConfig.kind)} did not produce any output frames.`
+      );
+    }
     await createImagesFromImageSequence({
       imagePaths: upscaledImagePaths,
       outputDir: options.outputDir,
@@ -314,6 +319,11 @@ export async function extractVideoFramesForVideoUpscale(options: {
     });
 
     const imagePaths = await getImageFilesFromFolder(tempUpscaledDir);
+    if (imagePaths.length === 0) {
+      throw new Error(
+        `${getUpscalerLabel(options.upscalerConfig.kind)} did not produce any output frames.`
+      );
+    }
     return {
       imagePaths,
       cleanup: async () => {

@@ -89,6 +89,20 @@ export function resolveDatArchPath(): string {
   return resolveBundledPath('dat', 'dat_arch.py');
 }
 
+export function resolveBundledPythonBinary(
+  variant: 'cpu' | 'cuda' | 'directml' = 'cuda'
+): string {
+  switch (variant) {
+    case 'cpu':
+      return resolveBundledExecutable('python311-cpu', 'python');
+    case 'directml':
+      return resolveBundledExecutable('python311-directml', 'python');
+    case 'cuda':
+    default:
+      return resolveBundledExecutable('python311', 'python');
+  }
+}
+
 export function resolveAnime4kcppBinary(): string {
   return resolveBundledExecutable('anime4kcpp', 'ac_cli');
 }

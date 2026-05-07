@@ -1,9 +1,8 @@
 # SST Sequencer
 
-Desktop Electron app for converting between image sequences and videos, upscaling images or videos, and optionally removing backgrounds before export.
+Desktop Electron app for converting between image sequences and videos, upscaling images or videos, and optionally removing backgrounds before export. Packaged builds include the bundled AI runtimes needed by the current backends.
 
 <img width="1919" height="1034" alt="image" src="https://github.com/user-attachments/assets/ca0e2739-a8c8-457e-ac92-b6ee721c92d9" />
-
 
 ## What It Does
 
@@ -84,13 +83,14 @@ Currently exposed models:
 
 ### Runtime split
 
-- Bundled `rembg` CLI:
-  - CPU
-  - GPU on supported NVIDIA systems
-- Fallback:
-  - Python `3.11` runtime path if the CLI is unavailable
+- Bundled `rembg` CLI is included in packaged builds.
+- Build profiles:
+  - `CPU` ships the `rembg` CPU CLI
+  - `DirectML` ships the `rembg` CPU CLI
+  - `CUDA` ships the `rembg` GPU CLI for supported NVIDIA systems
+- Some large `rembg` model weights, especially `BiRefNet` variants, are not bundled and may download on first use.
 
-AMD systems currently fall back to CPU for `rembg`.
+AMD and Intel systems currently use CPU for `rembg`.
 
 ## Upscalers
 
@@ -99,7 +99,7 @@ Single and batch workflows support:
 - `Nearest neighbor`
 - `xBR.js`
 - `pixel-scale-epx`
-- `Real-ESRGAN Anime Video v3`
+- `Real-ESRGAN`
 - `Real-CUGAN`
 - `Waifu2x`
 - `RealSR`
@@ -118,9 +118,11 @@ Single and batch workflows support:
 - JS pixel-art backends:
   - `xBR.js`
   - `pixel-scale-epx`
-- Optional Python backends:
+- Bundled Python backends:
   - `SwinIR`
   - `DAT`
+
+Packaged builds do not require a separate Python install for `SwinIR` or `DAT`.
 
 ## Alpha Handling
 
@@ -148,32 +150,15 @@ Single and batch workflows support:
 - npm
 
 FFmpeg and FFprobe are bundled through `ffmpeg-static` and `ffprobe-static`.
-The app also bundles native upscaler assets and the `rembg` CLI through `postinstall`.
+The app also bundles native upscaler assets, `rembg`, and the Python runtimes used by `SwinIR` and `DAT` through `postinstall`.
 
-### Optional Python backends
+### Packaged app
 
-`SwinIR` and `DAT` require Python `3.11` plus extra packages at runtime. Use `Python 3.11 x64`.
+Packaged installers do not require users to install Python, `torch`, or `rembg` separately.
 
-- `SwinIR`
-  - `torch`
-  - `timm`
-  - `numpy`
-  - `opencv-python`
-- `DAT`
-  - `torch`
-  - `timm`
-  - `einops`
-  - `numpy`
-  - `opencv-python`
+### Development fallback
 
-Example installs:
-
-```powershell
-py -3.11 -m pip install torch timm numpy opencv-python
-py -3.11 -m pip install torch timm einops numpy opencv-python
-```
-
-If `py -3.11` is not available, use a Python 3.11 interpreter through `python` or `python3` instead.
+The app can still fall back to an external Python environment in development, but that is no longer required for normal packaged use.
 
 ## Scripts
 
@@ -181,7 +166,11 @@ If `py -3.11` is not available, use a Python 3.11 interpreter through `python` o
 - `npm run dev` starts the Electron app in development mode
 - `npm run build` type-checks and builds main, preload, and renderer
 - `npm run preview` starts the production preview flow
-- `npm run dist` builds and packages the app
+- `npm run dist` builds and packages the default `CPU` profile
+- `npm run dist:cpu` builds the `CPU` profile
+- `npm run dist:cuda` builds the `CUDA` profile
+- `npm run dist:directml` builds the `DirectML` profile
+- `npm run dist:all` builds all three installer profiles
 - `npm run lint` runs ESLint
 - `npm run lint:fix` runs ESLint with auto-fixes
 - `npm run format` runs Prettier
@@ -192,17 +181,33 @@ If `py -3.11` is not available, use a Python 3.11 interpreter through `python` o
 - `npm run setup:realcugan` installs bundled Real-CUGAN assets
 - `npm run setup:waifu2x` installs bundled Waifu2x assets
 - `npm run setup:realsr` installs bundled RealSR assets
+- `npm run setup:python311` installs the bundled CUDA Python 3.11 runtime
+- `npm run setup:python311-cpu` installs the bundled CPU Python 3.11 runtime
+- `npm run setup:python311-directml` installs the bundled DirectML Python 3.11 runtime
 - `npm run setup:swinir` downloads SwinIR architecture and weights
 - `npm run setup:dat` downloads DAT architecture and weights
 - `npm run setup:anime4kcpp` installs bundled Anime4KCPP assets
 - `npm run setup:rembg` installs bundled `rembg` CLI assets
 
+## Build Profiles
+
+- `CPU`
+  - output: `release/cpu`
+  - bundles `python311-cpu` and `rembg` CPU
+- `CUDA`
+  - output: `release/cuda`
+  - bundles `python311` and `rembg` GPU
+- `DirectML`
+  - output: `release/directml`
+  - bundles `python311-directml` and `rembg` CPU
+
 ## Notes
 
 - `Anime4KCPP` is currently only bundled on Windows.
-- `SwinIR` and `DAT` are Python 3.11 backends, so packaging the desktop app does not embed a Python runtime.
+- `SwinIR` and `DAT` are bundled Python 3.11 backends in packaged builds.
 - `xBR.js` and `pixel-scale-epx` are pixel-art-focused upscalers. They are not intended for painted, antialiased, or photo-like images.
 - `rembg` GPU acceleration currently targets supported NVIDIA systems. Other systems fall back to CPU.
+- Large `rembg` weights such as `BiRefNet` variants are exposed in the UI, but not all of them are prebundled into the installer because of size.
 
 ## UX Notes
 

@@ -206,6 +206,40 @@ describe('media pipelines', () => {
     );
   });
 
+  it('rejects empty upscaler output directories instead of treating them as success', async () => {
+    const emitter = createEmitter();
+
+    vi.mocked(probeMediaInfo).mockResolvedValue({
+      width: 320,
+      height: 180,
+      hasAlpha: false,
+    });
+    vi.mocked(mkdtemp)
+      .mockResolvedValueOnce('D:\\tmp\\base')
+      .mockResolvedValueOnce('D:\\tmp\\upscaled');
+    vi.mocked(createImagesFromImageSequence).mockResolvedValue(undefined);
+    vi.mocked(upscaleWithRealcugan).mockResolvedValue(undefined);
+    vi.mocked(getImageFilesFromFolder).mockResolvedValue([]);
+    vi.mocked(removeTemporaryDirectories).mockResolvedValue(undefined);
+
+    await expect(
+      prepareSequenceFramesForOutput({
+        imagePaths: ['D:\\frames\\0001.png'],
+        resize: { width: 640, height: 360 },
+        upscaleMode: '2x',
+        upscalerConfig: { kind: 'realcugan', variant: 'denoise' },
+        alphaMode: 'auto',
+        ...backgroundRemoveDefaults,
+        emitter,
+      })
+    ).rejects.toThrow('Real-CUGAN did not produce any output frames.');
+
+    expect(removeTemporaryDirectories).toHaveBeenCalledWith(
+      'D:\\tmp\\base',
+      'D:\\tmp\\upscaled'
+    );
+  });
+
   it('extracts video frames directly for nearest upscale with resized neighbor output', async () => {
     const emitter = createEmitter();
 

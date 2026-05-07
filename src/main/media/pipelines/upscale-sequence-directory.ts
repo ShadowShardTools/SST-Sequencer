@@ -120,6 +120,11 @@ export async function prepareSequenceFramesForOutput(options: {
     });
 
     const upscaledPaths = await getImageFilesFromFolder(tempUpscaledDir);
+    if (upscaledPaths.length === 0) {
+      throw new Error(
+        `${getUpscalerLabel(options.upscalerConfig.kind)} did not produce any output frames.`
+      );
+    }
     return {
       imagePaths: upscaledPaths,
       resize: undefined,

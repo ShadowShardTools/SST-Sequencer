@@ -3,6 +3,7 @@ import {
   createDefaultUpscalerConfig,
   getUpscalerConfigFields,
   getUpscalerConfigValidationError,
+  getUpscalerNote,
   isValidUpscalerConfig,
   type UpscalerConfig,
 } from './registry';
@@ -81,5 +82,17 @@ describe('upscaler registry', () => {
         noise: '2',
       })
     ).toBe(true);
+  });
+
+  it('describes bundled Python upscalers without manual install instructions', () => {
+    const swinirNote = getUpscalerNote('swinir', '2x');
+    const datNote = getUpscalerNote('dat', '2x');
+
+    expect(swinirNote).toContain('runs on CPU by default');
+    expect(swinirNote).not.toContain('requires Python');
+    expect(swinirNote).not.toContain('installed');
+    expect(datNote).toContain('runs on CPU by default');
+    expect(datNote).not.toContain('requires Python');
+    expect(datNote).not.toContain('installed');
   });
 });

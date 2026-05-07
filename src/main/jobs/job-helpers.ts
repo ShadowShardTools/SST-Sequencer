@@ -12,7 +12,7 @@ export function buildBatchSummary(
 ): JobSummary {
   if (outputs.length === 0) {
     return {
-      headline: failures.length > 0 ? emptyHeadline : successHeadline,
+      headline: buildEmptyOutputHeadline(failures, emptyHeadline, successHeadline),
       outputs,
       completed: 0,
       failed: failures.length,
@@ -27,6 +27,27 @@ export function buildBatchSummary(
     failed: failures.length,
     failures,
   };
+}
+
+function buildEmptyOutputHeadline(
+  failures: JobFailure[],
+  emptyHeadline: string,
+  successHeadline: string
+): string {
+  if (failures.length === 0) {
+    return successHeadline;
+  }
+
+  if (failures.length === 1) {
+    return failures[0].reason;
+  }
+
+  const firstReason = failures[0]?.reason?.trim();
+  if (!firstReason) {
+    return `All ${failures.length} items failed.`;
+  }
+
+  return `All ${failures.length} items failed. First error: ${firstReason}`;
 }
 
 export function scaleBatchPercent(index: number, total: number, itemPercent: number): number {

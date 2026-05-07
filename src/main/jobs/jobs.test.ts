@@ -12,6 +12,7 @@ import { runBatchImageUpscaleJob } from './batch-image-upscale';
 import { runBatchSequenceToVideoJob } from './batch-sequence-to-video';
 import { runBatchVideoUpscaleJob } from './batch-video-upscale';
 import { runBatchVideoToSequenceJob } from './batch-video-to-sequence';
+import { buildBatchSummary } from './job-helpers';
 import { runSequenceToVideoJob } from './sequence-to-video';
 import { runVideoUpscaleJob } from './video-upscale';
 
@@ -231,6 +232,23 @@ beforeEach(() => {
 });
 
 describe('main job runners', () => {
+  it('surfaces the concrete failure reason when no items succeed', () => {
+    expect(
+      buildBatchSummary(
+        [],
+        [{ source: 'D:\\sprite.png', reason: 'DAT did not write any output images.' }],
+        'Image upscale finished',
+        'No images were upscaled.'
+      )
+    ).toEqual({
+      headline: 'DAT did not write any output images.',
+      outputs: [],
+      completed: 0,
+      failed: 1,
+      failures: [{ source: 'D:\\sprite.png', reason: 'DAT did not write any output images.' }],
+    });
+  });
+
   it('runs sequence-to-video through prepared frames and returns a summary', async () => {
     const emitter = createEmitter();
     const cleanup = vi.fn().mockResolvedValue(undefined);
