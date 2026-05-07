@@ -17,15 +17,18 @@ module.exports = {
     { from: 'vendor/realcugan', to: 'realcugan' },
     { from: 'vendor/waifu2x', to: 'waifu2x' },
     { from: 'vendor/realsr', to: 'realsr' },
-    { from: 'vendor/swinir', to: 'swinir' },
-    { from: 'vendor/dat', to: 'dat' },
     { from: 'vendor/anime4kcpp', to: 'anime4kcpp' },
     ...getProfileResources(profile),
   ],
 };
 
 function normalizeProfile(value) {
-  if (value === 'cuda' || value === 'directml' || value === 'cpu') {
+  if (
+    value === 'cuda-lite' ||
+    value === 'cuda-full' ||
+    value === 'directml' ||
+    value === 'cpu'
+  ) {
     return value;
   }
   return 'cpu';
@@ -33,8 +36,10 @@ function normalizeProfile(value) {
 
 function getProfileLabel(value) {
   switch (value) {
-    case 'cuda':
-      return 'CUDA';
+    case 'cuda-lite':
+      return 'CUDA Lite';
+    case 'cuda-full':
+      return 'CUDA Full';
     case 'directml':
       return 'DirectML';
     case 'cpu':
@@ -45,19 +50,31 @@ function getProfileLabel(value) {
 
 function getProfileResources(value) {
   switch (value) {
-    case 'cuda':
+    case 'cuda-full':
       return [
+        { from: 'vendor/swinir', to: 'swinir' },
+        { from: 'vendor/dat', to: 'dat' },
         { from: 'vendor/python311', to: 'python311' },
+        { from: 'vendor/rembg/gpu', to: path.join('rembg', 'gpu') },
+      ];
+    case 'cuda-lite':
+      return [
+        { from: 'vendor/swinir', to: 'swinir' },
+        { from: 'vendor/dat', to: 'dat' },
         { from: 'vendor/rembg/gpu', to: path.join('rembg', 'gpu') },
       ];
     case 'directml':
       return [
+        { from: 'vendor/swinir', to: 'swinir' },
+        { from: 'vendor/dat', to: 'dat' },
         { from: 'vendor/python311-directml', to: 'python311-directml' },
         { from: 'vendor/rembg/cpu', to: path.join('rembg', 'cpu') },
       ];
     case 'cpu':
     default:
       return [
+        { from: 'vendor/swinir', to: 'swinir' },
+        { from: 'vendor/dat', to: 'dat' },
         { from: 'vendor/python311-cpu', to: 'python311-cpu' },
         { from: 'vendor/rembg/cpu', to: path.join('rembg', 'cpu') },
       ];

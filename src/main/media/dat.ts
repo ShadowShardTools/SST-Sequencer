@@ -38,6 +38,7 @@ type PythonCommand = {
   argsPrefix: string[];
   label: string;
   runtimeMode: 'auto' | 'cpu' | 'directml';
+  origin: 'bundled' | 'external';
 };
 
 let cachedPythonCommandPromise: Promise<PythonCommand> | null = null;
@@ -171,7 +172,8 @@ async function resolvePythonCommand(): Promise<PythonCommand> {
 }
 
 async function detectPythonCommand(): Promise<PythonCommand> {
-  for (const candidate of await getBundledPythonCandidates()) {
+  const bundledCandidates = await getBundledPythonCandidates();
+  for (const candidate of bundledCandidates) {
     if (await canRunPython(candidate)) {
       return candidate;
     }
@@ -180,10 +182,30 @@ async function detectPythonCommand(): Promise<PythonCommand> {
   const candidates: PythonCommand[] =
     process.platform === 'win32'
       ? [
-          { command: 'py', argsPrefix: ['-3.11'], label: 'py -3.11', runtimeMode: 'auto' },
-          { command: 'python3.11', argsPrefix: [], label: 'python3.11', runtimeMode: 'auto' },
+          {
+            command: 'py',
+            argsPrefix: ['-3.11'],
+            label: 'py -3.11',
+            runtimeMode: 'auto',
+            origin: 'external',
+          },
+          {
+            command: 'python3.11',
+            argsPrefix: [],
+            label: 'python3.11',
+            runtimeMode: 'auto',
+            origin: 'external',
+          },
         ]
-      : [{ command: 'python3.11', argsPrefix: [], label: 'python3.11', runtimeMode: 'auto' }];
+      : [
+          {
+            command: 'python3.11',
+            argsPrefix: [],
+            label: 'python3.11',
+            runtimeMode: 'auto',
+            origin: 'external',
+          },
+        ];
 
   for (const candidate of candidates) {
     const ok = await canRunPython(candidate);
@@ -193,7 +215,9 @@ async function detectPythonCommand(): Promise<PythonCommand> {
   }
 
   throw new Error(
-    'DAT could not start its bundled Python 3.11 runtime. Ensure the packaged runtime is present. For development, you can also provide an external "python3.11" or "py -3.11" command.'
+    bundledCandidates.length > 0
+      ? 'DAT could not start its bundled Python 3.11 runtime, and no external Python 3.11 interpreter was found. Ensure the packaged runtime is present, or install Python 3.11 and provide "py -3.11" or "python3.11".'
+      : 'DAT requires Python 3.11 in this build. Install Python 3.11 and provide "py -3.11" or "python3.11".'
   );
 }
 
@@ -211,7 +235,7 @@ async function getBundledPythonCandidates(): Promise<PythonCommand[]> {
       return;
     }
 
-    candidates.push({ command, argsPrefix: [], label, runtimeMode });
+    candidates.push({ command, argsPrefix: [], label, runtimeMode, origin: 'bundled' });
   };
 
   if (process.platform === 'win32') {
@@ -258,8 +282,9 @@ async function ensureDatDependencies(python: PythonCommand): Promise<void> {
       ].join('; '),
     ]).catch(() => {
       throw new Error(
-        `DAT could not verify its Python dependencies in the selected runtime (${python.label}). ` +
-        'The bundled runtime may be missing or incomplete.'
+        python.origin === 'bundled'
+          ? `DAT could not verify its Python dependencies in the selected runtime (${python.label}). The bundled runtime may be missing or incomplete.`
+          : `DAT requires Python packages that were not found in ${python.label}. Install Python 3.11 packages: torch, timm, einops, numpy, opencv-python.`
       );
     });
   }

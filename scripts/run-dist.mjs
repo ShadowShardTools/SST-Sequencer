@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
 const requestedProfile = normalizeProfile(process.argv[2] ?? 'cpu');
-const profiles = requestedProfile === 'all' ? ['cpu', 'cuda', 'directml'] : [requestedProfile];
+const profiles =
+  requestedProfile === 'all'
+    ? ['cpu', 'cuda-lite', 'cuda-full', 'directml']
+    : [requestedProfile];
 
 for (const profile of profiles) {
   console.log(`[dist] Building ${profile} profile`);
@@ -10,7 +13,13 @@ for (const profile of profiles) {
 }
 
 function normalizeProfile(value) {
-  if (value === 'cpu' || value === 'cuda' || value === 'directml' || value === 'all') {
+  if (
+    value === 'cpu' ||
+    value === 'cuda-lite' ||
+    value === 'cuda-full' ||
+    value === 'directml' ||
+    value === 'all'
+  ) {
     return value;
   }
 

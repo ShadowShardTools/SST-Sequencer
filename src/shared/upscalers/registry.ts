@@ -472,11 +472,11 @@ export function getUpscalerNote(upscaler: UpscalerType, mode: UpscaleMode): stri
   }
 
   if (upscaler === 'swinir') {
-    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${isComposedLargeScale ? 'Large factors are composed from multiple native passes. ' : ''}This pass uses the bundled classical DF2K runtime. On non-CUDA systems it runs on CPU by default, because DirectML is disabled for SwinIR stability. Transparent sources keep a separately scaled alpha mask.`;
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${isComposedLargeScale ? 'Large factors are composed from multiple native passes. ' : ''}This pass uses the app runtime when bundled, or an external Python 3.11 environment when this build does not include one. On non-CUDA systems it runs on CPU by default, because DirectML is disabled for SwinIR stability. Transparent sources keep a separately scaled alpha mask.`;
   }
 
   if (upscaler === 'dat') {
-    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${isComposedLargeScale ? 'Large factors are composed from multiple native passes. ' : ''}This pass uses the bundled ICCV 2023 classical SR runtime. On non-CUDA systems it runs on CPU by default, because DirectML is disabled for DAT stability. Transparent sources keep a separately scaled alpha mask.`;
+    return `${getUpscalerLabel(upscaler)} will upscale from the selected base resolution by ${mode}. ${isComposedLargeScale ? 'Large factors are composed from multiple native passes. ' : ''}This pass uses the app runtime when bundled, or an external Python 3.11 environment when this build does not include one. On non-CUDA systems it runs on CPU by default, because DirectML is disabled for DAT stability. Transparent sources keep a separately scaled alpha mask.`;
   }
 
   if (upscaler === 'anime4kcpp') {

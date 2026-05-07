@@ -87,7 +87,7 @@ Currently exposed models:
 - Build profiles:
   - `CPU` ships the `rembg` CPU CLI
   - `DirectML` ships the `rembg` CPU CLI
-  - `CUDA` ships the `rembg` GPU CLI for supported NVIDIA systems
+  - `CUDA Lite` and `CUDA Full` ship the `rembg` GPU CLI for supported NVIDIA systems
 - Some large `rembg` model weights, especially `BiRefNet` variants, are not bundled and may download on first use.
 
 AMD and Intel systems currently use CPU for `rembg`.
@@ -118,11 +118,11 @@ Single and batch workflows support:
 - JS pixel-art backends:
   - `xBR.js`
   - `pixel-scale-epx`
-- Bundled Python backends:
+- Python-backed backends:
   - `SwinIR`
   - `DAT`
 
-Packaged builds do not require a separate Python install for `SwinIR` or `DAT`.
+Most packaged builds do not require a separate Python install for `SwinIR` or `DAT`. The `cuda-lite` build keeps their model assets but expects an external Python 3.11 environment with the required packages.
 
 ## Alpha Handling
 
@@ -150,11 +150,19 @@ Packaged builds do not require a separate Python install for `SwinIR` or `DAT`.
 - npm
 
 FFmpeg and FFprobe are bundled through `ffmpeg-static` and `ffprobe-static`.
-The app also bundles native upscaler assets, `rembg`, and the Python runtimes used by `SwinIR` and `DAT` through `postinstall`.
+The app also downloads native upscaler assets, `rembg`, and the optional Python runtimes used by `SwinIR` and `DAT` through `postinstall`.
 
 ### Packaged app
 
-Packaged installers do not require users to install Python, `torch`, or `rembg` separately.
+`CPU`, `DirectML`, and `CUDA Full` installers do not require users to install Python, `torch`, or `rembg` separately.
+
+`CUDA Lite` still includes `DAT` and `SwinIR` model assets, but expects the user to install Python `3.11` plus:
+
+- `torch`
+- `timm`
+- `numpy`
+- `opencv-python`
+- `einops` for `DAT`
 
 ### Development fallback
 
@@ -168,9 +176,11 @@ The app can still fall back to an external Python environment in development, bu
 - `npm run preview` starts the production preview flow
 - `npm run dist` builds and packages the default `CPU` profile
 - `npm run dist:cpu` builds the `CPU` profile
-- `npm run dist:cuda` builds the `CUDA` profile
+- `npm run dist:cuda` aliases to `npm run dist:cuda-full`
+- `npm run dist:cuda-lite` builds the `CUDA Lite` profile
+- `npm run dist:cuda-full` builds the `CUDA Full` profile
 - `npm run dist:directml` builds the `DirectML` profile
-- `npm run dist:all` builds all three installer profiles
+- `npm run dist:all` builds all four installer profiles
 - `npm run lint` runs ESLint
 - `npm run lint:fix` runs ESLint with auto-fixes
 - `npm run format` runs Prettier
@@ -194,8 +204,17 @@ The app can still fall back to an external Python environment in development, bu
 - `CPU`
   - output: `release/cpu`
   - bundles `python311-cpu` and `rembg` CPU
-- `CUDA`
-  - output: `release/cuda`
+- `CUDA Lite`
+  - output: `release/cuda-lite`
+  - bundles `rembg` GPU plus `DAT` / `SwinIR` model assets
+  - expects external Python 3.11 with:
+    - `torch`
+    - `timm`
+    - `numpy`
+    - `opencv-python`
+    - `einops` for `DAT`
+- `CUDA Full`
+  - output: `release/cuda-full`
   - bundles `python311` and `rembg` GPU
 - `DirectML`
   - output: `release/directml`
@@ -204,7 +223,7 @@ The app can still fall back to an external Python environment in development, bu
 ## Notes
 
 - `Anime4KCPP` is currently only bundled on Windows.
-- `SwinIR` and `DAT` are bundled Python 3.11 backends in packaged builds.
+- `SwinIR` and `DAT` are fully bundled in `CPU`, `DirectML`, and `CUDA Full`. `CUDA Lite` relies on an external Python 3.11 environment for them.
 - `xBR.js` and `pixel-scale-epx` are pixel-art-focused upscalers. They are not intended for painted, antialiased, or photo-like images.
 - `rembg` GPU acceleration currently targets supported NVIDIA systems. Other systems fall back to CPU.
 - Large `rembg` weights such as `BiRefNet` variants are exposed in the UI, but not all of them are prebundled into the installer because of size.

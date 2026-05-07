@@ -1,4 +1,6 @@
 import type * as Electron from 'electron';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { VideoFormat } from '../shared/formats';
 import type { JobEvent, JobRequest } from '../shared/jobs';
 import type { MediaApi } from '../shared/media-api';
@@ -9,7 +11,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron') as typeof E
 const api: MediaApi = {
   getRuntimeInfo: () => ({
     platform: process.platform,
-    supportedUpscalers: getSupportedUpscalerValues(process.platform),
+    supportedUpscalers: getRuntimeSupportedUpscalers(process.platform),
   }),
   pickImageFiles: () => ipcRenderer.invoke('dialog:pick-image-files'),
   pickSequenceFolders: () => ipcRenderer.invoke('dialog:pick-sequence-folders'),
@@ -42,3 +44,26 @@ const api: MediaApi = {
 };
 
 contextBridge.exposeInMainWorld('mediaApi', api);
+
+function getRuntimeSupportedUpscalers(platform: NodeJS.Platform) {
+  return getSupportedUpscalerValues(platform).filter((upscaler) => {
+    if (upscaler === 'swinir') {
+      return hasBundledResource('swinir', 'network_swinir.py');
+    }
+
+    if (upscaler === 'dat') {
+      return hasBundledResource('dat', 'dat_arch.py');
+    }
+
+    return true;
+  });
+}
+
+function hasBundledResource(resourceFolder: string, entryName: string): boolean {
+  const candidates = [
+    join(process.resourcesPath, resourceFolder, entryName),
+    join(process.cwd(), 'vendor', resourceFolder, entryName),
+  ];
+
+  return candidates.some((candidate) => existsSync(candidate));
+}
