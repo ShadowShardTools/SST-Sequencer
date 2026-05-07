@@ -1,7 +1,9 @@
 # SST Sequencer
 
 Desktop Electron app for converting between image sequences and videos, upscaling images or videos, and optionally removing backgrounds before export.
-<img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/4f8f0af2-3f18-4d21-98ab-b1200c401b3f" />
+
+<img width="1919" height="1034" alt="image" src="https://github.com/user-attachments/assets/ca0e2739-a8c8-457e-ac92-b6ee721c92d9" />
+
 
 ## What It Does
 
