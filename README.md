@@ -1,3 +1,4 @@
+
 # SST Sequencer
 
 Desktop Electron app for converting between image sequences and videos, upscaling images or videos, and optionally removing backgrounds before export. Packaged builds include the bundled AI runtimes needed by the current backends.
@@ -18,6 +19,8 @@ Desktop Electron app for converting between image sequences and videos, upscalin
 - Upscale with native, JS, or Python-backed upscalers
 - Remove backgrounds with bundled `rembg`
 - Preserve alpha when the selected format and pipeline support it
+
+<img width="1920" height="1080" alt="What it does" src="https://github.com/user-attachments/assets/bd1f1085-d5e4-4698-8a04-8c5135dd3ee1" />
 
 ## Workflows
 
